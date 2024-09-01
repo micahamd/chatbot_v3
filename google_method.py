@@ -64,8 +64,40 @@ model = genai.GenerativeModel('gemini-1.5-flash', generation_config=generation_c
 #     # Print the response
 #     print(f"Description for {image_path.name}:\n{response.text}\n")
 
+# 5. Process JSON files (text only)
+# if file_path and context_dir:
+#    json_file = combine_json(file_path, image_skip=True)
+#    text_content = extract_text_content(json_file)
+#    context_json_file = context_directory(context_dir, image_skip=True)
+#    context_text_content = extract_text_content(context_json_file)
+#    message_content = "File:[ " + text_content + "], Context files: [" + context_text_content + "]"
+# 
+# elif file_path and not context_dir:
+#    json_file = combine_json(file_path, image_skip=True)
+#    text_content = extract_text_content(json_file)
+#    message_content = "File: [" + text_content + "]"
+# 
+# elif context_dir and not file_path:
+#     context_json_file = context_directory(context_dir, image_skip=True)
+#     context_text_content = json.dumps(context_json_file)
+#     message_content = "Context files: [" + context_text_content + "]"
+# 
+# else:
+#     message_content = "None."
+# 
+# # Construct message
+# if file_path or context_dir:
+#     msg_content = "Prompt: [" + prompt + "], Dumped JSON documents: [" + message_content + "]"
+# else:
+#     msg_content = "Prompt: [" + prompt + "]"
+# 
+# # Send to model
+# response = model.generate_content([msg_content])
+# print(response.text)
 
-# 5. with JSON files 
+
+
+# 6. Extract Images created temporarily and linked within the JSON files 
 def extract_text_content(json_file):
     return json_file.get('text_JSON', {}).get('content', {}).get('text', '')
 
@@ -106,36 +138,3 @@ for image_path in img_dir.glob("*.png"):
     
     # Print the response
     print(f"Description for {image_path.name}:\n{response.text}\n")
-
-# 
-# 
-# # Process JSON files (text only)
-# if file_path and context_dir:
-#    json_file = combine_json(file_path, image_skip=True)
-#    text_content = extract_text_content(json_file)
-#    context_json_file = context_directory(context_dir, image_skip=True)
-#    context_text_content = extract_text_content(context_json_file)
-#    message_content = "File:[ " + text_content + "], Context files: [" + context_text_content + "]"
-# 
-# elif file_path and not context_dir:
-#    json_file = combine_json(file_path, image_skip=True)
-#    text_content = extract_text_content(json_file)
-#    message_content = "File: [" + text_content + "]"
-# 
-# elif context_dir and not file_path:
-#     context_json_file = context_directory(context_dir, image_skip=True)
-#     context_text_content = json.dumps(context_json_file)
-#     message_content = "Context files: [" + context_text_content + "]"
-# 
-# else:
-#     message_content = "None."
-# 
-# # Construct message
-# if file_path or context_dir:
-#     msg_content = "Prompt: [" + prompt + "], Dumped JSON documents: [" + message_content + "]"
-# else:
-#     msg_content = "Prompt: [" + prompt + "]"
-# 
-# # Send to model
-# response = model.generate_content([msg_content])
-# print(response.text)
