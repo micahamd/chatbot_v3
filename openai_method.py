@@ -3,11 +3,11 @@ import json
 import base64
 import openai
 from dotenv import load_dotenv
-from prep_file import combine_json, context_directory, batch_directory
+from prep_file import combine_json, context_directory, extract_text_content
 
 load_dotenv()
 
-def openai_method(prompt, instructions, file_path=None, context_dir=None, model_name='mini', token_count=500, include_images=True):
+def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tokens=500):
     # Map short names to full model names
     model_name_mapping = {
         'mini': 'gpt-4o-mini',
@@ -20,8 +20,7 @@ def openai_method(prompt, instructions, file_path=None, context_dir=None, model_
     # Configure the API and initialize the model
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        print("WARNING: OPENAI_API_KEY environment variable not set. OpenAI API will not be available.")
-        return None
+        raise ValueError("OPENAI_API_KEY environment variable not set")
 
     openai.api_key = api_key
 
@@ -34,10 +33,6 @@ def openai_method(prompt, instructions, file_path=None, context_dir=None, model_
     context_json = {}
     if context_dir:
         context_json = context_directory(context_dir, image_skip=False)
-
-    # Text extraction method
-    def extract_text_content(json_file):
-        return json_file.get('text_JSON', {}).get('content', {}).get('text', '')
 
     # Image extraction method
     def extract_image_urls(json_file):
@@ -58,7 +53,7 @@ def openai_method(prompt, instructions, file_path=None, context_dir=None, model_
     image_urls = extract_image_urls(json_file)
 
     # Combine into messages
-    messages = [{"role": "system", "content": instructions}]
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
     if text_content:
         messages.append({"role": "user", 
                          "content": [
@@ -66,23 +61,22 @@ def openai_method(prompt, instructions, file_path=None, context_dir=None, model_
                               "text": text_content}
                          ]})
 
-    if include_images:
-        for image_url in image_urls:
-            try:
-                base64_image = encode_image(image_url)
-                messages.append({
-                    "role": "user",
-                    "content": [
-                        {"type": "text", 
-                         "text": f"Context image: {os.path.basename(image_url)}"},
-                        {"type": "image_url", 
-                         "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-                    ]
-                })
-            except FileNotFoundError:
-                print(f"Warning: Image file not found at {image_url}")
-            except Exception as e:
-                print(f"Error opening image {image_url}: {e}")
+    for image_url in image_urls:
+        try:
+            base64_image = encode_image(image_url)
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", 
+                     "text": f"Context image: {os.path.basename(image_url)}"},
+                    {"type": "image_url", 
+                     "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                ]
+            })
+        except FileNotFoundError:
+            print(f"Warning: Image file not found at {image_url}")
+        except Exception as e:
+            print(f"Error opening image {image_url}: {e}")
 
     # Add the prompt to the messages
     messages.append({"role": "user", "content": [{"type": "text", "text": prompt}]})
@@ -92,19 +86,22 @@ def openai_method(prompt, instructions, file_path=None, context_dir=None, model_
         response = openai.chat.completions.create(
             model=full_model_name,
             messages=messages,
-            max_tokens=token_count
+            max_tokens=max_tokens
         )
-        return response
+        return response.choices[0].message.content
     except Exception as e:
         print(f"Error generating content: {e}")
         return None
 
 # Example usage
-# prompt = "Please summarize this"
-# instructions = "You may receive JSON documents with image URLs. Please focus on the 'content' section of the JSON to comprehend the document. Don't respond in JSON."
-# file_path = r"C:\Users\Admin\OneDrive - The University of the South Pacific\Documents\cfs-crafter.pdf"
-# response = openai_method(prompt, instructions, file_path=file_path, include_images=False)
+# response = gpt_api(
+#     prompt="Describe what you see poetically",
+#     file_path=r"C:\Users\Admin\Pictures\image_dir_test\back_sunset_woman_beach.png",
+#     context_dir=None,
+#     model_name="mini",
+#     max_tokens=500
+# )
 # if response:
-#     print(response.choices[0].message.content)
+#     print(response)
 # else:
 #     print("Failed to generate response from OpenAI API.")
