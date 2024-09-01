@@ -18,9 +18,10 @@ generation_config = {"temperature": 0.3,"top_p": 0.95,"top_k": 60,"max_output_to
 
 # 2. Initialize the model
 model = genai.GenerativeModel('gemini-1.5-flash', generation_config=generation_config)
+prompt = "Describe what you see poetically"
 
 # 3. Generate content (text only)
-# prompt = "Describe a fire engine poetically"
+
 # response = model.generate_content([prompt])
 # print(response.text)
 
@@ -37,32 +38,28 @@ model = genai.GenerativeModel('gemini-1.5-flash', generation_config=generation_c
 # response = model.generate_content(prompt_parts)
 # print(response.text)
 
-# 4b. With Multiple Image File processing
+# 4b. Multiple Image File processing from a directory with a prompt
 
-# img1 = PIL.Image.open(r"C:\Users\Admin\Pictures\micah_2024.jpg")
-# img2 = PIL.Image.open(r"C:\Users\Admin\Pictures\micah_2024.jpg")
-# 
-# # List of images
-# images = [img1, img2]
-# 
-# # Process each image sequentially
-# for img in images:
-#     response = model.generate_content([img])
-#     print(response.text)
+include_images = True  # Set to True to include images in the prompt
+
+image_directory = Path(r"C:\Users\Admin\Pictures\image_dir_test") # Define the directory containing the images
+
+image_descriptions = []  # Initialize a list to store the descriptions
+
+if include_images:
+    for image_path in image_directory.glob("*.png"):  # Iterate over all PNG files in the directory
+        img = PIL.Image.open(image_path)
+        response = model.generate_content([prompt, img])
+        description = f"Response: {image_path.name}:\n{response.text}\n"
+        print(description)
+        image_descriptions.append(description)  # Append the description to the list
+else:
+        response = model.generate_content([prompt])
+        description = f"Response: {response.text}\n"
+        print(description)
+        image_descriptions.append(description)  # Append the description to the list
 
 
-# 4c. With Image Directory processing
-
-# image_directory = Path(r"C:\Users\Admin\Pictures\image_dir_test")
-# for image_path in image_directory.glob("*.jpg"):
-#     # Open the image
-#     img = PIL.Image.open(image_path)
-#     
-#     # Generate content using the model API
-#     response = model.generate_content([img])
-#     
-#     # Print the response
-#     print(f"Description for {image_path.name}:\n{response.text}\n")
 
 # 5. Process JSON files (text only)
 # if file_path and context_dir:
