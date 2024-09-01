@@ -3,6 +3,9 @@ from read_image_url import extract_images  # Import function to extract images f
 import json  # Import JSON module for handling JSON data
 import os  # Import OS module for interacting with the operating system
 import glob  # Import glob module for file pattern matching
+from pathlib import Path # Import Path class for handling file paths
+from urllib.parse import urlparse # Import urlparse function for parsing URLs
+
 
 def combine_json(file_path, image_skip=False):
     # Extract text JSON from the file
@@ -57,6 +60,26 @@ def batch_directory(directory_path, image_skip=False):
     # Return the list containing results for all files
     return results
 
+# Text extraction method
+def extract_text_content(json_file):
+    return json_file.get('text_JSON', {}).get('content', {}).get('text', '')
+
+# For iterating over images in a directory
+def extract_image_directory_from_json(json_file):
+    images = json_file.get('image_JSON', {}).get('images', [])
+    image_urls = [image.get('url', '') for image in images]
+    
+    if not image_urls:
+        return None
+    
+    # Parse the first URL to get the path
+    parsed_url = urlparse(image_urls[0])
+    image_path = Path(parsed_url.path.lstrip('/'))  # Remove leading slash
+    
+    # Return the directory containing the images
+    return image_path.parent
+
+
 # Example usage
 # file_path = r"C:\Users\Admin\OneDrive - The University of the South Pacific\Documents\fig2_heat.png"
 # combine_json(file_path, image_skip=False)
@@ -72,3 +95,4 @@ def batch_directory(directory_path, image_skip=False):
 #    batch_results = batch_directory(directory_path, image_skip=True)
 #    for result in batch_results:
 #        print(json.dumps(result, indent=4))  # Print the combined JSON structure for each file
+
