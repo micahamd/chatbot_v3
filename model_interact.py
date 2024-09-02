@@ -1,34 +1,159 @@
 from google_method import gemini_api
 from mistral_method import mistral_api
-from openai_method import openai_method
+from openai_method import gpt_api
+from typing import List, Dict, Any, Optional
+import webbrowser
+import os
 
-# Prompt and instructions
+class Conversation:
+    def __init__(self):
+        self.messages: List[Dict[str, str]] = []
+
+    def add_message(self, role: str, content: str):
+        self.messages.append({"role": role, "content": content})
+
+    def get_full_conversation(self) -> str:
+        return "\n".join([f"{msg['role']}: {msg['content']}" for msg in self.messages])
+
+def model_playground(
+    prompt: str,
+    dev: str = 'google',
+    file_path: str = None,
+    context_dir: str = None,
+    model_name: str = None,
+    max_tokens: int = 500,
+    conversation: Optional[Conversation] = None,
+    include_chat_history: bool = True
+) -> Dict[str, Any]:
+    if conversation is None:
+        conversation = Conversation()
+    
+    def generate_response(current_prompt: str) -> str:
+        if dev == 'google':
+            response = gemini_api(current_prompt, file_path, context_dir, model_name or 'gemini-1.5-flash', max_tokens)
+        elif dev == 'openai':
+            response = gpt_api(current_prompt, file_path, context_dir, model_name or 'mini', max_tokens)
+        elif dev == 'mistral':
+            response = mistral_api(current_prompt, file_path, context_dir, model_name or 'mistral-large-latest', max_tokens)
+        else:
+            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', or 'mistral'.")
+        
+        return response
+
+    if include_chat_history and conversation.messages:
+        full_prompt = f"{conversation.get_full_conversation()}\nUser: {prompt}"
+    else:
+        full_prompt = prompt
+
+    response = generate_response(full_prompt)
+    
+    conversation.add_message("User", prompt)
+    conversation.add_message("Assistant", response)
+
+    result = {
+        "response": response,
+        "conversation": conversation
+    }
+
+    return result
+
+def generate_html(conversations: Dict[str, Conversation]) -> str:
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>AI Model Conversations</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }
+            h1, h2 { color: #333; }
+            .conversation { background-color: #f4f4f4; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
+            .message { margin-bottom: 10px; }
+            .user { color: #0066cc; }
+            .assistant { color: #009933; }
+        </style>
+    </head>
+    <body>
+        <h1>AI Model Conversations</h1>
+    """
+
+    for dev, conversation in conversations.items():
+        html_content += f"""
+        <div class="conversation">
+            <h2>{dev.capitalize()} Conversation</h2>
+        """
+        for message in conversation.messages:
+            html_content += f"""
+            <div class="message">
+                <span class="{message['role'].lower()}"><strong>{message['role']}:</strong></span> {message['content']}
+            </div>
+            """
+        html_content += "</div>"
+
+    html_content += """
+    </body>
+    </html>
+    """
+
+    return html_content
+
+def display_conversations_in_browser(conversations: Dict[str, Conversation]):
+    html_content = generate_html(conversations)
+    with open("ai_conversations.html", "w", encoding="utf-8") as f:
+        f.write(html_content)
+    webbrowser.open('file://' + os.path.realpath("ai_conversations.html"))
+
+class AIPlayground:
+    def __init__(self, context_dir: str = None):
+        self.context_dir = context_dir
+        self.conversations = {
+            'google': Conversation(),
+            'openai': Conversation(),
+            'mistral': Conversation()
+        }
+
+    def process_prompt(self, prompt: str, dev: str = 'all', include_chat_history: bool = True):
+        if dev == 'all':
+            models = ['google', 'openai', 'mistral']
+        elif dev in self.conversations:
+            models = [dev]
+        else:
+            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', or 'all'.")
+
+        results = {}
+        for model in models:
+            result = model_playground(
+                prompt, 
+                dev=model, 
+                context_dir=self.context_dir, 
+                conversation=self.conversations[model],
+                include_chat_history=include_chat_history
+            )
+            results[model] = result["response"]
+            print(f"\n{model.capitalize()} Response to '{prompt}':")
+            print(result["response"])
+
+        return results
+
+    def display_results(self):
+        display_conversations_in_browser(self.conversations)
+
 # Example usage
-prompt = "The reviewer points out that I need to do a mixed between/within ANCOVA where you control for T1 IQ to account for baseline differences, plus any other baseline factors that predicted subsequent dropout, to account for biased dropout, and then test for an interaction between Times T2 and T3, the three SMART conditions, as well as for a main effect of each. Please carefully examine the analysis section of the manuscript and respond to this reviewer's comment by justifying how our analytic procedure was appropriate given our design. Also try to find a limitation in the reviewer's suggestion and subtly imply why the current manuscript's analysis was better informed."
+if __name__ == "__main__":
+    playground = AIPlayground(context_dir=None)
 
-instructions = "You will receive an academic manuscript and a list of reviewer comments in JSON format. Please carefully examine the manuscript and the reviewer comments. You will be prompted on specific reviewer points. Please examine the manuscript and the comments carefully before generating your response. You don't have to respond in JSON. You can use the JSON metadata of the input files to help you grasp the structure of the manuscript."
+    # Initial prompt for all models
+    playground.process_prompt("Tell me a funny story about Mary", dev='google')
 
-# file_path = r"C:\Users\Admin\Python Projects\chatbot\context_files\pdf_test\Amd, 2023_sub_selfesteem.pdf"  # C:\path\to\file
-context_dir = r"C:\Users\Admin\Desktop\ANa IQ Paper Review\iq_chatbot"
+    # Follow-up question for all models
+    playground.process_prompt("Continue Mary's humorous adventures", dev='google')
 
-#-----#
+    # Another follow-up for all models
+    playground.process_prompt("End Mary's story with a horrifically dark twist", dev='google')
 
-# Gemini method
-# gemini_api(prompt, instructions,file_path=None, context_dir=None, model_name='flash', token_count=500, include_images=True)
-gem_response = gemini_api(prompt, instructions, context_dir, include_images=False)
-print(gem_response.text)
+    # Final question for all models
+    playground.process_prompt("How would these modifications affect the statistical power and interpretation of results?", dev='google')
 
-#-----#
-
-# Mistral method
-# def mistral_api(prompt, instructions, file_path=None, context_dir=None, model_name='nemo', token_count=500, include_images=False)
-mis_response = mistral_api(prompt=prompt, instructions=instructions, context_dir=context_dir)
-print(mis_response.choices[0].message.content)
-
-#-----#
-
-# OpenAI method
-# def openai_method(prompt, instructions, file_path=None, context_dir=None, model_name='mini', token_count=500, include_images=True):
-
-gpt_response = openai_method(prompt, instructions, context_dir=context_dir, include_images=False)
-print(gpt_response.choices[0].message.content)
+    # Display the results in the browser
+    playground.display_results()
