@@ -79,7 +79,6 @@ def extract_image_directory_from_json(json_file):
     # Return the directory containing the images
     return image_path.parent
 
-
 # Example usage
 # file_path = r"C:\Users\Admin\OneDrive - The University of the South Pacific\Documents\fig2_heat.png"
 # combine_json(file_path, image_skip=False)

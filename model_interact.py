@@ -139,7 +139,7 @@ class AIPlayground:
     def display_results(self):
         display_conversations_in_browser(self.conversations)
 
-# Example usage
+# Example usage ~ Use the same dev option to 'continue' conversation across prompts
 if __name__ == "__main__":
     playground = AIPlayground(context_dir=None)
 
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     playground.process_prompt("End Mary's story with a horrifically dark twist", dev='google')
 
     # Final question for all models
-    playground.process_prompt("How would these modifications affect the statistical power and interpretation of results?", dev='google')
+    playground.process_prompt("How would Mary describe her day?", dev='google')
 
     # Display the results in the browser
     playground.display_results()
