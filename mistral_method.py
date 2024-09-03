@@ -52,7 +52,7 @@ def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max
     chat_response = client.chat(
         model=model_name,
         messages=messages,
-        temperature=0.2,
+        temperature=0.3,
         safe_prompt=False,
         max_tokens=max_tokens
     )

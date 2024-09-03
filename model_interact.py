@@ -4,6 +4,7 @@ from openai_method import gpt_api
 from typing import List, Dict, Any, Optional
 import webbrowser
 import os
+import json
 
 class Conversation:
     def __init__(self):
@@ -105,18 +106,16 @@ def display_conversations_in_browser(conversations: Dict[str, Conversation]):
     webbrowser.open('file://' + os.path.realpath("ai_conversations.html"))
 
 class AIPlayground:
-    def __init__(self, context_dir: str = None):
+    def __init__(self, context_dir: str = None, history_file: str = "conversation_history.json"):
         self.context_dir = context_dir
-        self.conversations = {
-            'google': Conversation(),
-            'openai': Conversation(),
-            'mistral': Conversation()
-        }
+        self.conversation = Conversation()
+        self.history_file = history_file
+        self.load_history()
 
     def process_prompt(self, prompt: str, dev: str = 'all', include_chat_history: bool = True):
         if dev == 'all':
             models = ['google', 'openai', 'mistral']
-        elif dev in self.conversations:
+        elif dev in ['google', 'openai', 'mistral']:
             models = [dev]
         else:
             raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', or 'all'.")
@@ -127,19 +126,39 @@ class AIPlayground:
                 prompt, 
                 dev=model, 
                 context_dir=self.context_dir, 
-                conversation=self.conversations[model],
+                conversation=self.conversation,
                 include_chat_history=include_chat_history
             )
             results[model] = result["response"]
             print(f"\n{model.capitalize()} Response to '{prompt}':")
             print(result["response"])
 
+        self.save_history()
         return results
 
     def display_results(self):
-        display_conversations_in_browser(self.conversations)
+        conversations = {
+            'all': self.conversation
+        }
+        display_conversations_in_browser(conversations)
 
-# Example usage ~ Use the same dev option to 'continue' conversation across prompts
+    def save_history(self):
+        with open(self.history_file, 'w') as f:
+            json.dump(self.conversation.messages, f)
+
+    def load_history(self):
+        try:
+            with open(self.history_file, 'r') as f:
+                self.conversation.messages = json.load(f)
+        except FileNotFoundError:
+            pass  # No history file found, start with an empty conversation
+
+    def clear_history(self):
+        self.conversation = Conversation()
+        self.save_history()
+        print("Conversation history cleared.")
+
+# Example usage
 if __name__ == "__main__":
     playground = AIPlayground(context_dir=None)
 
@@ -147,13 +166,16 @@ if __name__ == "__main__":
     playground.process_prompt("Tell me a funny story about Mary", dev='google')
 
     # Follow-up question for all models
-    playground.process_prompt("Continue Mary's humorous adventures", dev='google')
+    playground.process_prompt("Continue Mary's humorous adventures", dev='openai')
 
     # Another follow-up for all models
-    playground.process_prompt("End Mary's story with a horrifically dark twist", dev='google')
+    playground.process_prompt("End Mary's story with a dark twist", dev='mistral')
 
     # Final question for all models
     playground.process_prompt("How would Mary describe her day?", dev='google')
 
     # Display the results in the browser
     playground.display_results()
+
+    # Clear the conversation history (uncomment to use)
+    # playground.clear_history()
