@@ -2,6 +2,7 @@ from google_method import gemini_api
 from mistral_method import mistral_api
 from openai_method import gpt_api
 from typing import List, Dict, Any, Optional
+from prep_file import combine_json
 import webbrowser
 import os
 import json
@@ -23,7 +24,7 @@ def model_playground(
     file_path: str = None,
     context_dir: str = None,
     model_name: str = None,
-    max_tokens: int = 50,
+    max_tokens: int = 500,
     conversation: Optional[Conversation] = None,
     include_chat_history: bool = True
 ) -> Dict[str, Any]:
@@ -113,11 +114,14 @@ class AIPlayground:
         self.history_file = history_file
         self.load_history()
 
-    def process_prompt(self, prompt: str, dev: str, include_chat_history: bool = True):
+    def process_prompt(self, prompt: str, dev: str, file_path: str = None, model_name: str = None, max_tokens: int = 500, include_chat_history: bool = True):
         result = model_playground(
             prompt, 
             dev=dev, 
+            file_path=file_path,
             context_dir=self.context_dir, 
+            model_name=model_name,
+            max_tokens=max_tokens,
             conversation=self.conversation,
             include_chat_history=include_chat_history
         )
@@ -127,14 +131,21 @@ class AIPlayground:
         self.save_history()
         return result["response"]
 
-    def batch_process(self, directory: str, prompt: str, dev: str, file_pattern: str = "*"):
+    def batch_process(self, directory: str, prompt: str, dev: str, file_pattern: str = "*", context_dir: str = None, model_name: str = None, max_tokens: int = 500, include_chat_history: bool = True):
         results = {}
         for file_path in glob.glob(os.path.join(directory, file_pattern)):
             with open(file_path, 'r') as file:
-                file_content = file.read()
+                file_content = self.combine_json(file_path)
             
             file_prompt = f"{prompt}\n\nFile content:\n{file_content}"
-            result = self.process_prompt(file_prompt, dev)
+            result = self.process_prompt(
+                file_prompt,
+                dev=dev,
+                file_path=file_path,
+                model_name=model_name,
+                max_tokens=max_tokens,
+                include_chat_history=include_chat_history
+            )
             results[file_path] = result
         
         return results
@@ -168,15 +179,18 @@ if __name__ == "__main__":
     # Process individual prompts
     playground.process_prompt("Tell me a funny story about Mary", dev='google')
     playground.process_prompt("Continue Mary's humorous adventures", dev='openai')
-    playground.process_prompt("End Mary's story with a dark twist", dev='mistral')
+    playground.process_prompt("End Mary's story with a dark twist", dev='openai')
     playground.process_prompt("How would Mary describe her day?", dev='google')
 
     # Batch process files in a directory
     batch_results = playground.batch_process(
-        directory="path/to/your/directory",
+        directory=r"C:\Users\Admin\Python Projects\chatbot\output_files",
         prompt="Summarize the content of this file",
         dev='google',
-        file_pattern="*.txt"
+        file_pattern="*.txt",
+        model_name='gemini-1.5-flash',
+        max_tokens=300,
+        include_chat_history=False
     )
     for file_path, summary in batch_results.items():
         print(f"\nSummary for {file_path}:")

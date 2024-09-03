@@ -22,11 +22,11 @@ def extract_json_text(file_path):
             "file_size": os.path.getsize(file_path),
             "file_type": ext,
             "instructions": {
-                "text": "The 'text' field contains the concatenated text content of the file.",
-                "paragraphs": "The 'paragraphs' field is a dictionary where keys are MD5 hashes of paragraph content and values are the paragraph text. This helps in deduplication.",
-                "headings": "The 'headings' field is a dictionary where keys are MD5 hashes of heading content and values are the heading text.",
-                "tables": "The 'tables' field is a list of tables extracted from the document. Each table is represented as a list of rows, where each row is a list of cell values.",
-                "pages": "The 'pages' field is a list of dictionaries, each representing a page or slide. Each dictionary contains the page/slide number, text content, and lists of paragraph and heading hashes."
+                "text": "Maint text content",
+                "paragraphs": "A dictionary where keys are MD5 hashes of paragraph content and values are the paragraph text. This helps in deduplication.",
+                "headings": "A dictionary where keys are MD5 hashes of heading content and values are the heading text.",
+                "tables": "A list of tables extracted from the document. Each table is represented as a list of rows, where each row is a list of cell values.",
+                "pages": "A list of dictionaries, each representing a page or slide. Each dictionary contains the page/slide number, text content, and lists of paragraph and heading hashes."
             }
         },
         "content": {
