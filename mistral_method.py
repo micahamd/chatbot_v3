@@ -9,7 +9,9 @@ def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max
     # Map short names to full model names
     model_name_mapping = {
         'nemo': 'open-mistral-nemo',
-        'large': 'mistral-large-latest'
+        'large': 'mistral-large-latest',
+        'codestral': 'codestral-latest',
+        'mamba': 'open-codestral-mamba'
     }
 
     # Get the full model name from the mapping

@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 import webbrowser
 import os
 import json
+import glob
 
 class Conversation:
     def __init__(self):
@@ -18,11 +19,11 @@ class Conversation:
 
 def model_playground(
     prompt: str,
-    dev: str = 'google',
+    dev: str,
     file_path: str = None,
     context_dir: str = None,
     model_name: str = None,
-    max_tokens: int = 500,
+    max_tokens: int = 50,
     conversation: Optional[Conversation] = None,
     include_chat_history: bool = True
 ) -> Dict[str, Any]:
@@ -112,33 +113,35 @@ class AIPlayground:
         self.history_file = history_file
         self.load_history()
 
-    def process_prompt(self, prompt: str, dev: str = 'all', include_chat_history: bool = True):
-        if dev == 'all':
-            models = ['google', 'openai', 'mistral']
-        elif dev in ['google', 'openai', 'mistral']:
-            models = [dev]
-        else:
-            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', or 'all'.")
-
-        results = {}
-        for model in models:
-            result = model_playground(
-                prompt, 
-                dev=model, 
-                context_dir=self.context_dir, 
-                conversation=self.conversation,
-                include_chat_history=include_chat_history
-            )
-            results[model] = result["response"]
-            print(f"\n{model.capitalize()} Response to '{prompt}':")
-            print(result["response"])
+    def process_prompt(self, prompt: str, dev: str, include_chat_history: bool = True):
+        result = model_playground(
+            prompt, 
+            dev=dev, 
+            context_dir=self.context_dir, 
+            conversation=self.conversation,
+            include_chat_history=include_chat_history
+        )
+        print(f"\n{dev.capitalize()} Response to '{prompt}':")
+        print(result["response"])
 
         self.save_history()
+        return result["response"]
+
+    def batch_process(self, directory: str, prompt: str, dev: str, file_pattern: str = "*"):
+        results = {}
+        for file_path in glob.glob(os.path.join(directory, file_pattern)):
+            with open(file_path, 'r') as file:
+                file_content = file.read()
+            
+            file_prompt = f"{prompt}\n\nFile content:\n{file_content}"
+            result = self.process_prompt(file_prompt, dev)
+            results[file_path] = result
+        
         return results
 
     def display_results(self):
         conversations = {
-            'all': self.conversation
+            'combined': self.conversation
         }
         display_conversations_in_browser(conversations)
 
@@ -162,17 +165,22 @@ class AIPlayground:
 if __name__ == "__main__":
     playground = AIPlayground(context_dir=None)
 
-    # Initial prompt for all models
+    # Process individual prompts
     playground.process_prompt("Tell me a funny story about Mary", dev='google')
-
-    # Follow-up question for all models
     playground.process_prompt("Continue Mary's humorous adventures", dev='openai')
-
-    # Another follow-up for all models
     playground.process_prompt("End Mary's story with a dark twist", dev='mistral')
-
-    # Final question for all models
     playground.process_prompt("How would Mary describe her day?", dev='google')
+
+    # Batch process files in a directory
+    batch_results = playground.batch_process(
+        directory="path/to/your/directory",
+        prompt="Summarize the content of this file",
+        dev='google',
+        file_pattern="*.txt"
+    )
+    for file_path, summary in batch_results.items():
+        print(f"\nSummary for {file_path}:")
+        print(summary)
 
     # Display the results in the browser
     playground.display_results()
