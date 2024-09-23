@@ -5,54 +5,48 @@ import json
 from prep_file import combine_json, extract_text_content, context_directory
 
 def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max_tokens=500):
+    print(f"Mistral API called with prompt: {prompt[:100]}...")
+    print(f"File path: {file_path}")
+    print(f"Context directory: {context_dir}")
     
-    # Map short names to full model names
+    # Model configuration
     model_name_mapping = {
         'nemo': 'open-mistral-nemo',
         'large': 'mistral-large-latest',
         'codestral': 'codestral-latest',
         'mamba': 'open-codestral-mamba'
     }
-
-    # Get the full model name from the mapping
     full_model_name = model_name_mapping.get(model_name, 'open-mistral-nemo')
-           
-    # Initialize the client
+    
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         raise ValueError("MISTRAL_API_KEY environment variable not set")
     client = MistralClient(api_key=api_key)
 
-    # Process JSON files (Mistral can't handle images)
-    message_content = ""
-    if file_path and context_dir:
+    # Process context directory
+    context_content = ""
+    if context_dir:
+        print("Processing context_dir")
+        context_json_file = context_directory(context_dir, image_skip=True, use_cache=True)
+        print(f"Context JSON file keys: {list(context_json_file.keys())}")
+        context_content = extract_text_content(context_json_file)
+
+    # Process file path
+    file_content = ""
+    if file_path:
         json_file = combine_json(file_path, image_skip=True)
-        text_content = extract_text_content(json_file)
-        context_json_file = context_directory(context_dir, image_skip=True)
-        context_text_content = extract_text_content(context_json_file)
-        message_content = f"File: [ {text_content} ], Context files: [ {context_text_content} ]"
-    elif file_path and not context_dir:
-        json_file = combine_json(file_path, image_skip=True)
-        text_content = extract_text_content(json_file)
-        message_content = f"File: [ {text_content} ]"
-    elif context_dir and not file_path:
-        context_json_file = context_directory(context_dir, image_skip=True)
-        context_text_content = json.dumps(context_json_file)
-        message_content = f"Context files: [ {context_text_content} ]"
-    else:
-        message_content = "No additional files."
+        file_content = extract_text_content(json_file)
 
-    # Construct message
-    msg_content = f"Prompt: [ {prompt} ], Dumped JSON documents: [ {message_content} ]"
+    # Combine content
+    message_content = f"Context: {context_content}\nFile: {file_content}".strip()
+    print(f"Final message_content: {message_content[:500]}...")
 
-    # Construct messages
-    messages = [
-        ChatMessage(role="user", content=msg_content),
-    ]
-
-    # Generate response
+    # Construct message and generate response
+    msg_content = f"Prompt: [ {prompt} ], Content: [ {message_content} ]"
+    messages = [ChatMessage(role="user", content=msg_content)]
+    
     chat_response = client.chat(
-        model=model_name,
+        model=full_model_name,
         messages=messages,
         temperature=0.3,
         safe_prompt=False,
@@ -64,9 +58,9 @@ def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max
 # Example usage
 # response = mistral_api(
 #     prompt="Describe what you see poetically",
-#     file_path=r"C:\Users\Admin\Desktop\ANa IQ Paper Review\IQ paper manuscript.docx",
-#     context_dir=None,
-#     model_name="open-mistral-nemo",
+#     file_path=None,
+#     context_dir=r"C:\Users\micah\Downloads\Python Proj\chat_v3\chatbot_v3\context_files",
+#     model_name='nemo',
 #     max_tokens=500
 # )
 # print(response)

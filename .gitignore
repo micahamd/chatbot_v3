@@ -1,0 +1,15 @@
+ai_conversations.html
+
+context_cache.json
+conversation_history.json
+
+.env
+
+folder_select.py
+run_playground.py
+
+prompt_list.md
+
+/context_files
+/output_files
+/venv
