@@ -2,28 +2,35 @@ import sys
 import io
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                              QWidget, QPushButton, QComboBox, QTextEdit, QFileDialog, 
-                             QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit)
-from PyQt6.QtGui import (QPixmap, QTextCursor,QTextDocument, QIntValidator)
-from PyQt6.QtCore import QUrl
+                             QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit,
+                             QStyleFactory)
+from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase)
+from PyQt6.QtCore import (QUrl, Qt)
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
-from PyQt6.QtCore import Qt
 from model_interact import AIPlayground
 from prep_file import context_directory
 
-# max_tok = 4000 # Max tokens for the model
 
 class AIPlaygroundGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Playground")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 700)  # Increased window size for better layout
         self.network_manager = QNetworkAccessManager()
         self.network_manager.finished.connect(self.on_image_downloaded)
 
         self.playground = AIPlayground(context_dir=None)
-        self.batch_dir = None
         self.file_path = None
+        self.batch_dir = None
+        self.current_theme = "RedTheme"  # Default theme
+        
         self.init_ui()
+        self.load_fonts()
+        self.apply_theme()
+
+    def load_fonts(self):
+        QFontDatabase.addApplicationFont("path/to/Roboto-Regular.ttf")
+        QFontDatabase.addApplicationFont("path/to/Roboto-Bold.ttf")
 
     def display_image(self, image_path_or_url):
         if image_path_or_url.startswith(('http://', 'https://')):
@@ -73,8 +80,10 @@ class AIPlaygroundGUI(QMainWindow):
         self.dev_combo = QComboBox()
         self.dev_combo.addItems(["google", "openai", "mistral"])
         self.dev_combo.currentIndexChanged.connect(self.update_model_options)
+        dev_model_layout.addWidget(QLabel("AI Provider:"))
         dev_model_layout.addWidget(self.dev_combo)
         self.model_combo = QComboBox()
+        dev_model_layout.addWidget(QLabel("Model:"))
         dev_model_layout.addWidget(self.model_combo)
         layout.addLayout(dev_model_layout)
         self.update_model_options()
@@ -90,6 +99,7 @@ class AIPlaygroundGUI(QMainWindow):
         layout.addLayout(max_tok_layout)
 
         # Prompt input
+        layout.addWidget(QLabel("Enter your prompt:"))
         self.prompt_input = QTextEdit()
         self.prompt_input.setPlaceholderText("Enter your prompt here...")
         layout.addWidget(self.prompt_input)
@@ -133,11 +143,11 @@ class AIPlaygroundGUI(QMainWindow):
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimumHeight(20)
-        self.progress_bar.setStyleSheet("QProgressBar { border: 2px solid grey; border-radius: 5px; text-align: center; } QProgressBar::chunk { background-color: #3add36; width: 1px; }")
         self.progress_bar.setVisible(False)  # Initially invisible
         layout.addWidget(self.progress_bar)
 
         # Output display
+        layout.addWidget(QLabel("Output:"))
         self.output_area = QScrollArea()
         self.output_area.setWidgetResizable(True)
         self.output_widget = QTextEdit()
@@ -155,7 +165,24 @@ class AIPlaygroundGUI(QMainWindow):
         button_layout.addWidget(self.save_button)
         layout.addLayout(button_layout)
 
+        # Theme toggle button
+        self.theme_button = QPushButton("Toggle Theme")
+        self.theme_button.clicked.connect(self.toggle_theme)
+        layout.addWidget(self.theme_button)
+
         central_widget.setLayout(layout)
+
+    def apply_theme(self):
+        with open("style.qss", "r") as f:
+            self.setStyleSheet(f.read())
+        self.setProperty("class", self.current_theme)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
+    def toggle_theme(self):
+        self.current_theme = "GreyTheme" if self.current_theme == "RedTheme" else "RedTheme"
+        self.apply_theme()
 
     def update_model_options(self):
         self.model_combo.clear()

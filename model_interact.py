@@ -64,105 +64,6 @@ def model_playground(
 
     return result
 
-def generate_html(conversations: Dict[str, Conversation]) -> str:
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AI Model Conversations</title>
-        <style>
-            /* ... existing styles ... */
-            .file-result { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
-            .file-name { font-weight: bold; margin-bottom: 10px; }
-            .collapsible { background-color: #eee; color: #444; cursor: pointer; padding: 18px; width: 100%; border: none; text-align: left; outline: none; font-size: 15px; }
-            .active, .collapsible:hover { background-color: #ccc; }
-            .content { padding: 0 18px; display: none; overflow: hidden; background-color: #f1f1f1; }
-        </style>
-    </head>
-    <body>
-        <div class="sidebar">
-            <h1>Conversations</h1>
-            <ul>
-    """
-
-    for dev in conversations.keys():
-        html_content += f"<li><a href='#{dev}'>{dev.capitalize()}</a></li>"
-
-    html_content += """
-            </ul>
-        </div>
-        <div class="main-content">
-    """
-
-    for dev, conversation in conversations.items():
-        html_content += f"""
-        <div id="{dev}" class="conversation">
-            <h2>{dev.capitalize()} Conversation</h2>
-            <div class="messages">
-        """
-        user_prompt = ""
-        for message in conversation.messages:
-            role_class = message['role'].lower()
-            content = markdown2.markdown(message['content'])
-            if role_class == 'user':
-                user_prompt = content
-            else:
-                if 'File:' in content:
-                    file_name = content.split('File:')[1].split('\n')[0].strip()
-                    response = content.split('Response:')[1].strip()
-                    html_content += f"""
-                    <div class="file-result">
-                        <button class="collapsible">{file_name}</button>
-                        <div class="content">
-                            <div class="{role_class}">
-                                <strong>{message['role']}:</strong>
-                                {response}
-                            </div>
-                        </div>
-                    </div>
-                    """
-                else:
-                    html_content += f"""
-                    <div class="message">
-                        <div class="{role_class}">
-                            <strong>{message['role']}:</strong>
-                            {content}
-                        </div>
-                    </div>
-                    """
-        html_content += "</div></div>"
-
-    html_content += """
-        </div>
-        <script>
-            var coll = document.getElementsByClassName("collapsible");
-            var i;
-
-            for (i = 0; i < coll.length; i++) {
-                coll[i].addEventListener("click", function() {
-                    this.classList.toggle("active");
-                    var content = this.nextElementSibling;
-                    if (content.style.display === "block") {
-                        content.style.display = "none";
-                    } else {
-                        content.style.display = "block";
-                    }
-                });
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return html_content
-
-def display_conversations_in_browser(conversations: Dict[str, Conversation]):
-    html_content = generate_html(conversations)
-    with open("ai_conversations.html", "w", encoding="utf-8") as f:
-        f.write(html_content)
-    webbrowser.open('file://' + os.path.realpath("ai_conversations.html"))
-
 class AIPlayground:
     def __init__(self, context_dir: str = None, history_file: str = "conversation_history.json"):
         self.context_dir = context_dir
@@ -262,9 +163,7 @@ class AIPlayground:
         print(f"\n{dev.capitalize()} Response to '{prompt}':")
         print(response)
 
-    def display_results(self):
-        conversations = {'combined': self.conversation}
-        display_conversations_in_browser(conversations)
+
 
 
 ## Example usage

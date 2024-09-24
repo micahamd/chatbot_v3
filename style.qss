@@ -1,0 +1,108 @@
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
+/* Common Styles */
+* {
+    font-family: 'Roboto', sans-serif;
+}
+
+QWidget {
+    font-size: 14px;
+}
+
+QPushButton {
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-weight: bold;
+    border: none;
+}
+
+QLineEdit, QTextEdit, QComboBox {
+    padding: 5px;
+    border-radius: 5px;
+    background-color: white;
+}
+
+QProgressBar {
+    border-radius: 5px;
+    text-align: center;
+    font-weight: bold;
+}
+
+QProgressBar::chunk {
+    border-radius: 5px;
+}
+
+/* Red Theme */
+.RedTheme {
+    background-color: #FFEBEE;
+    color: #333333;
+}
+
+.RedTheme QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FF5252, stop:1 #FF1744);
+    color: white;
+}
+
+.RedTheme QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FF8A80, stop:1 #FF5252);
+}
+
+.RedTheme QLineEdit, .RedTheme QTextEdit, .RedTheme QComboBox {
+    border: 2px solid #FF4081;
+}
+
+.RedTheme QProgressBar {
+    border: 2px solid #FF4081;
+    color: #333333;
+}
+
+.RedTheme QProgressBar::chunk {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FF80AB, stop:1 #FF4081);
+}
+
+/* Grey Theme */
+.GreyTheme {
+    background-color: #F5F5F5;
+    color: #333333;
+}
+
+.GreyTheme QPushButton {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #9E9E9E, stop:1 #757575);
+    color: white;
+}
+
+.GreyTheme QPushButton:hover {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #BDBDBD, stop:1 #9E9E9E);
+}
+
+.GreyTheme QLineEdit, .GreyTheme QTextEdit, .GreyTheme QComboBox {
+    border: 2px solid #757575;
+}
+
+.GreyTheme QProgressBar {
+    border: 2px solid #757575;
+    color: #333333;
+}
+
+.GreyTheme QProgressBar::chunk {
+    background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #BDBDBD, stop:1 #9E9E9E);
+}
+
+/* Scrollbar Styling */
+QScrollBar:vertical {
+    border: none;
+    background: #E0E0E0;
+    width: 10px;
+    margin: 0px 0px 0px 0px;
+}
+
+QScrollBar::handle:vertical {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #BDBDBD, stop:1 #9E9E9E);
+    min-height: 20px;
+    border-radius: 5px;
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
