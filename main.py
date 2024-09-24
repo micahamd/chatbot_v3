@@ -2,15 +2,15 @@ import sys
 import io
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                              QWidget, QPushButton, QComboBox, QTextEdit, QFileDialog, 
-                             QLabel, QScrollArea, QCheckBox, QProgressBar)
-from PyQt6.QtGui import (QPixmap, QTextCursor,QTextDocument)
+                             QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit)
+from PyQt6.QtGui import (QPixmap, QTextCursor,QTextDocument, QIntValidator)
 from PyQt6.QtCore import QUrl
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PyQt6.QtCore import Qt
 from model_interact import AIPlayground
 from prep_file import context_directory
 
-max_tok = 1000 # Max tokens for the model
+# max_tok = 4000 # Max tokens for the model
 
 class AIPlaygroundGUI(QMainWindow):
     def __init__(self):
@@ -78,6 +78,16 @@ class AIPlaygroundGUI(QMainWindow):
         dev_model_layout.addWidget(self.model_combo)
         layout.addLayout(dev_model_layout)
         self.update_model_options()
+
+        # Configure Max tokens
+        max_tok_layout = QHBoxLayout()
+        max_tok_label = QLabel("Max Tokens:")
+        self.max_tok_input = QLineEdit()
+        self.max_tok_input.setText("1000")  # Set default value to 1000
+        self.max_tok_input.setValidator(QIntValidator(1, 100000))  # Limit input to integers
+        max_tok_layout.addWidget(max_tok_label)
+        max_tok_layout.addWidget(self.max_tok_input)
+        layout.addLayout(max_tok_layout)
 
         # Prompt input
         self.prompt_input = QTextEdit()
@@ -206,7 +216,7 @@ class AIPlaygroundGUI(QMainWindow):
                     prompt,
                     dev,
                     model_name=model,
-                    max_tokens=max_tok,
+                    max_tokens=int(self.max_tok_input.text()),
                     include_chat_history=include_history
                 )
                 total_files = len(batch_results)
@@ -223,7 +233,7 @@ class AIPlaygroundGUI(QMainWindow):
                     dev=dev,
                     file_path=self.file_path,
                     model_name=model,
-                    max_tokens=max_tok,
+                    max_tokens=int(self.max_tok_input.text()),
                     include_chat_history=include_history
                 )
                 self.output_widget.append(f"Response:\n{response}\n")
@@ -242,12 +252,19 @@ class AIPlaygroundGUI(QMainWindow):
     
     def clear_output(self):
         self.output_widget.clear()
+        self.playground.clear_history()
 
     def save_output(self):
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Output", "", "Text Files (*.txt);;All Files (*)")
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self, "Save Output", "", "HTML Files (*.html);;Text Files (*.txt);;All Files (*)"
+        )
         if file_path:
-            with open(file_path, 'w') as file:
-                file.write(self.output_widget.toPlainText())
+            if selected_filter == "HTML Files (*.html)":
+                with open(file_path, 'w', encoding='utf-8') as file:
+                    file.write(self.output_widget.toHtml())
+            else:
+                with open(file_path, 'w', encoding='utf-8') as file:
+                    file.write(self.output_widget.toPlainText())
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
