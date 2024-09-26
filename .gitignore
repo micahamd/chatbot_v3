@@ -13,3 +13,6 @@ prompt_list.md
 /context_files
 /output_files
 /venv
+
+.DS_Storev
+.DS_Store
