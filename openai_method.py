@@ -9,7 +9,7 @@ import io
 
 load_dotenv()
 
-def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tokens=500, chat_history_images=None, current_image=None):
+def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tokens=500, chat_history_images=None):
     print(f"GPT API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -87,9 +87,9 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
     # Combine into messages
     messages = [{"role": "system", "content": "You are a helpful assistant."}]
     if context_content:
-        messages.append({"role": "user", "content": [{"type": "text", "text": f"Context: {context_content}"}]})
+        messages.append({"role": "user", "content": f"Context: {context_content}"})
     if text_content:
-        messages.append({"role": "user", "content": [{"type": "text", "text": f"File content: {text_content}"}]})
+        messages.append({"role": "user", "content": f"File content: {text_content}"})
 
     for image_url in all_image_urls:
         try:
@@ -101,41 +101,13 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
             
             messages.append({
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": "Image:"},
-                    {"type": "image_url", "image_url": {"url": image_content}}
-                ]
+                "content": f"Image: {image_content}"
             })
         except Exception as e:
             print(f"Error processing image: {e}")
 
-    # Add the current image if provided
-    if current_image:
-        if isinstance(current_image, str):
-            if current_image.startswith(('http://', 'https://')):
-                # It's a URL
-                image_content = {"type": "image_url", "image_url": {"url": current_image}}
-            else:
-                # It's a file path
-                with open(current_image, "rb") as image_file:
-                    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
-                image_content = {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
-        elif isinstance(current_image, Image.Image):
-            # It's a PIL Image object
-            buffered = io.BytesIO()
-            current_image.save(buffered, format="PNG")
-            base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
-            image_content = {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{base64_image}"}}
-        else:
-            raise ValueError("Unsupported image type")
-
-        messages.append({"role": "user", "content": [
-            {"type": "text", "text": "Here's an image:"},
-            image_content
-        ]})
-
     # Add the prompt to the messages
-    messages.append({"role": "user", "content": [{"type": "text", "text": prompt}]})
+    messages.append({"role": "user", "content": prompt})
 
     print(f"Number of messages: {len(messages)}")
     print(f"Number of images processed: {len(all_image_urls)}")
