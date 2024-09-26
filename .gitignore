@@ -1,5 +1,4 @@
 ai_conversations.html
-
 context_cache.json
 conversation_history.json
 
@@ -7,6 +6,7 @@ conversation_history.json
 
 folder_select.py
 run_playground.py
+ideogram.py
 
 prompt_list.md
 
