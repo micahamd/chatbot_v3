@@ -1,10 +1,14 @@
 import sys
 import io
+import base64
+import re
+import markdown
+import requests
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
                              QWidget, QPushButton, QComboBox, QTextEdit, QFileDialog, 
                              QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit,
-                             QStyleFactory)
-from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase)
+                             QStyleFactory, QTextBrowser)
+from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase, QImage)
 from PyQt6.QtCore import (QUrl, Qt)
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from model_interact import AIPlayground
@@ -15,14 +19,14 @@ class AIPlaygroundGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Playground")
-        self.setGeometry(100, 100, 1000, 700)  # Increased window size for better layout
+        self.setGeometry(100, 100, 1000, 700)
         self.network_manager = QNetworkAccessManager()
         self.network_manager.finished.connect(self.on_image_downloaded)
 
         self.playground = AIPlayground(context_dir=None)
         self.file_path = None
         self.batch_dir = None
-        self.current_theme = "RedTheme"  # Default theme
+        self.current_theme = "RedTheme"
         
         self.init_ui()
         self.load_fonts()
@@ -150,8 +154,8 @@ class AIPlaygroundGUI(QMainWindow):
         layout.addWidget(QLabel("Output:"))
         self.output_area = QScrollArea()
         self.output_area.setWidgetResizable(True)
-        self.output_widget = QTextEdit()
-        self.output_widget.setReadOnly(True)
+        self.output_widget = QTextBrowser()
+        self.output_widget.setOpenExternalLinks(True)
         self.output_area.setWidget(self.output_widget)
         layout.addWidget(self.output_area)
 
@@ -192,7 +196,7 @@ class AIPlaygroundGUI(QMainWindow):
         elif dev == "openai":
             self.model_combo.addItems(["gpt-4o-mini", "gpt-4o"])
         elif dev == "mistral":
-            self.model_combo.addItems(["open-mistral-nemo", "mistral-large-latest"])
+            self.model_combo.addItems(["open-mistral-nemo", "mistral-large-latest","codestral-latest"])
 
     def select_context_directory(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Context Directory")
@@ -236,7 +240,7 @@ class AIPlaygroundGUI(QMainWindow):
             include_history = self.include_history_checkbox.isChecked()
             
             if self.batch_dir:
-                self.progress_bar.setVisible(True)  # Make sure the progress bar is visible
+                self.progress_bar.setVisible(True)
                 self.progress_bar.setMaximum(100)
                 batch_results = self.playground.batch_process(
                     self.batch_dir,
@@ -247,13 +251,16 @@ class AIPlaygroundGUI(QMainWindow):
                     include_chat_history=include_history
                 )
                 total_files = len(batch_results)
+                html_output = ""
                 for i, (file_path, response) in enumerate(batch_results.items()):
-                    self.output_widget.append(f"File: {file_path}\nResponse:\n{response}\n")
-                    self.output_widget.append("="*10 + "\n")  # Add a separator line
+                    html_output += f"<h3>File: {file_path}</h3>"
+                    html_output += self.markdown_to_html(response)
+                    html_output += "<hr>"
                     progress_value = int((i + 1) / total_files * 100)
                     self.progress_bar.setValue(progress_value)
-                    QApplication.processEvents()  # Allow the GUI to update
-                self.progress_bar.setVisible(False)  # Hide the progress bar when done
+                    QApplication.processEvents()
+                self.output_widget.append(html_output)
+                self.progress_bar.setVisible(False)
             else:
                 response = self.playground.process_prompt(
                     prompt=prompt,
@@ -263,23 +270,37 @@ class AIPlaygroundGUI(QMainWindow):
                     max_tokens=int(self.max_tok_input.text()),
                     include_chat_history=include_history
                 )
-                self.output_widget.append(f"Response:\n{response}\n")
                 
-                # Check if the response contains an image URL or file path
+                # Convert response to HTML
+                html_response = self.markdown_to_html(response)
+                
+                # Handle images
                 if "http://" in response or "https://" in response:
                     urls = [word for word in response.split() if word.startswith(('http://', 'https://'))]
                     for url in urls:
-                        self.display_image(url)
+                        html_response = html_response.replace(url, f'<img src="{url}" />')
                 elif "file://" in response:
                     file_paths = [word for word in response.split() if word.startswith('file://')]
                     for file_path in file_paths:
-                        self.display_image(file_path[7:])  # Remove 'file://' prefix
+                        html_response = html_response.replace(file_path, self.embed_image(file_path[7:]))
+                
+                # Append new response to the existing content
+                self.output_widget.append(f"<strong>User:</strong> {prompt}")
+                self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
+                self.output_widget.append("<hr>")
+        
         except Exception as e:
-            self.output_widget.append(f"Error: {str(e)}\n")
+            self.output_widget.append(f"<p style='color: red;'>Error: {str(e)}</p>")
+        
+        # Scroll to the bottom of the output widget
+        self.output_widget.verticalScrollBar().setValue(
+            self.output_widget.verticalScrollBar().maximum()
+        )
     
     def clear_output(self):
         self.output_widget.clear()
         self.playground.clear_history()
+        print("Conversation history cleared.")
 
     def save_output(self):
         file_path, selected_filter = QFileDialog.getSaveFileName(
@@ -292,6 +313,34 @@ class AIPlaygroundGUI(QMainWindow):
             else:
                 with open(file_path, 'w', encoding='utf-8') as file:
                     file.write(self.output_widget.toPlainText())
+
+    def markdown_to_html(self, text):
+        # Convert markdown to HTML
+        html = markdown.markdown(text)
+        
+        # Replace LaTeX equations with MathJax rendering
+        html = re.sub(r'\$\$(.*?)\$\$', lambda m: f'\\({m.group(1)}\\)', html)
+        html = re.sub(r'\$(.*?)\$', lambda m: f'\\({m.group(1)}\\)', html)
+        
+        # Wrap the content with MathJax script
+        html = f'''
+        <html>
+        <head>
+        <script type="text/javascript" async
+          src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
+        </script>
+        </head>
+        <body>
+        {html}
+        </body>
+        </html>
+        '''
+        return html
+
+    def embed_image(self, image_path):
+        with open(image_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+        return f'<img src="data:image/png;base64,{encoded_string}" />'
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

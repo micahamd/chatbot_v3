@@ -55,12 +55,3 @@ def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max
 
     return chat_response.choices[0].message.content
 
-# Example usage
-# response = mistral_api(
-#     prompt="Describe what you see poetically",
-#     file_path=None,
-#     context_dir=r"C:\Users\micah\Downloads\Python Proj\chat_v3\chatbot_v3\context_files",
-#     model_name='nemo',
-#     max_tokens=500
-# )
-# print(response)

@@ -142,19 +142,4 @@ def compress_context(context_json):
 def decompress_context(compressed_context):
     return json.loads(zlib.decompress(compressed_context).decode())
 
-# Example usage
-# file_path = r"C:\Users\Admin\OneDrive - The University of the South Pacific\Documents\fig2_heat.png"
-# combine_json(file_path, image_skip=False)
-
-#if __name__ == "__main__":
-#    directory_path = r"C:\Users\Admin\OneDrive - The University of the South Pacific\Documents\batch_test_old\PS205 Text Chapters\PS205 Ch1 split - done"  # Replace with the path to your directory C:\your\directory\path
-#    
-#    # Process all files at once and store in a single JSON object
-#    context_results = context_directory(directory_path, image_skip=True)
-#    print(json.dumps(context_results, indent=4))  # Print the combined JSON structure for all files
-#    
-#    # Process each file individually and produce separate JSON outputs
-#    batch_results = batch_directory(directory_path, image_skip=True)
-#    for result in batch_results:
-#        print(json.dumps(result, indent=4))  # Print the combined JSON structure for each file
 

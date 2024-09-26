@@ -164,34 +164,3 @@ class AIPlayground:
         print(response)
 
 
-
-
-## Example usage
-#if __name__ == "__main__":
-#    playground = AIPlayground(context_dir=None)
-#
-#    # Process individual prompts
-#    playground.process_prompt("Tell me a funny story about Mary", dev='google')
-#    playground.process_prompt("Continue Mary's humorous adventures", dev='openai')
-#    playground.process_prompt("End Mary's story with a dark twist", dev='openai')
-#    playground.process_prompt("How would Mary describe her day?", dev='google')
-#
-#    # Batch process files in a directory
-#    batch_results = playground.batch_process(
-#        directory=r"C:\Users\micah\Downloads\WA1_Assignments",
-#        prompt="Summarize the content of this file",
-#        dev='google',
-#        file_pattern="*.json",
-#        model_name='gemini-1.5-flash',
-#        max_tokens=300,
-#        include_chat_history=False
-#    )
-#    for file_path, summary in batch_results.items():
-#        print(f"\nSummary for {file_path}:")
-#        print(summary)
-#
-#    # Display the results in the browser
-#    playground.display_results()
-
-    # Clear the conversation history (uncomment to use)
-    # playground.clear_history()

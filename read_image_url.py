@@ -136,8 +136,4 @@ def extract_images(file_path):
     return result
 
 
-# Example usage
-#if __name__ == "__main__":
-#file_path = r"C:\Users\Admin\OneDrive - The University of the South Pacific\Documents\fig2_heat.png"  # Replace with the path to your file
-#output = extract_images(file_path)
-#print(json.dumps(output, indent=4))  # This will print the JSON string
+
