@@ -3,21 +3,27 @@ from mistral_method import mistral_api
 from openai_method import gpt_api
 from typing import List, Dict, Any, Optional
 from read_json_text import extract_json_text
-from prep_file import combine_json, context_directory, ContextCache  # Added ContextCache import
+from prep_file import combine_json, context_directory, ContextCache
 import markdown2
 import webbrowser
 import os
 import json
 import glob
 import tempfile
-
+import base64
+from PIL import Image
+import io
+import requests
 
 class Conversation:
     def __init__(self):
-        self.messages: List[Dict[str, str]] = []
+        self.messages: List[Dict[str, Any]] = []
 
-    def add_message(self, role: str, content: str):
-        self.messages.append({"role": role, "content": content})
+    def add_message(self, role: str, content: str, image: Optional[str] = None):
+        message = {"role": role, "content": content}
+        if image:
+            message["image"] = image
+        self.messages.append(message)
 
     def get_full_conversation(self) -> str:
         return "\n".join([f"{msg['role']}: {msg['content']}" for msg in self.messages])
@@ -35,24 +41,39 @@ def model_playground(
     if conversation is None:
         conversation = Conversation()
     
-    def generate_response(current_prompt: str) -> str:
+    def generate_response(current_prompt: str, chat_history_images: List[Image.Image]) -> str:
         if dev == 'google':
-            response = gemini_api(current_prompt, file_path, context_dir, model_name or 'gemini-1.5-flash', max_tokens)
+            response = gemini_api(current_prompt, file_path, context_dir, model_name or 'gemini-1.5-flash', max_tokens, chat_history_images)
         elif dev == 'openai':
-            response = gpt_api(current_prompt, file_path, context_dir, model_name or 'mini', max_tokens)
+            response = gpt_api(current_prompt, file_path, context_dir, model_name or 'mini', max_tokens, chat_history_images)
         elif dev == 'mistral':
             response = mistral_api(current_prompt, file_path, context_dir, model_name or 'mistral-large-latest', max_tokens)
         else:
             raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', or 'mistral'.")
         
+        # Remove any "Response for chat history image:" prefix if present
+        response = response.replace("Response for chat history image:", "").strip()
+        
         return response
 
+    chat_history_images = []
     if include_chat_history and conversation.messages:
         full_prompt = f"{conversation.get_full_conversation()}\nUser: {prompt}"
+        for message in conversation.messages:
+            if 'image' in message:
+                if message['image'].startswith('http'):
+                    # If it's a URL, download the image
+                    response = requests.get(message['image'])
+                    image = Image.open(io.BytesIO(response.content))
+                else:
+                    # If it's base64 encoded data
+                    image_data = base64.b64decode(message['image'])
+                    image = Image.open(io.BytesIO(image_data))
+                chat_history_images.append(image)
     else:
         full_prompt = prompt
 
-    response = generate_response(full_prompt)
+    response = generate_response(full_prompt, chat_history_images)
     
     conversation.add_message("User", prompt)
     conversation.add_message("Assistant", response)

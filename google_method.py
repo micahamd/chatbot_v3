@@ -7,7 +7,7 @@ from prep_file import combine_json, context_directory, extract_text_content, ext
 
 load_dotenv()
 
-def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max_tokens=500):
+def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max_tokens=500, chat_history_images=None):
     print(f"Gemini API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -71,19 +71,26 @@ def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max
     
     print(f"Number of images to process: {len(img_paths)}")
 
-
     # Combine all image paths
     all_img_paths = img_paths + context_img_paths
+
+    # Add chat history images
+    if chat_history_images:
+        all_img_paths.extend(chat_history_images)
+    
     print(f"Total number of images to process: {len(all_img_paths)}")
     
     # Generate content
     if all_img_paths:
         responses = []
-        for image_path in all_img_paths:
-            print(f"Processing image: {image_path.name}")
-            img = PIL.Image.open(image_path)
+        for image in all_img_paths:
+            print(f"Processing image: {getattr(image, 'name', 'chat history image')}")
+            if isinstance(image, str):  # It's a file path
+                img = PIL.Image.open(image)
+            else:  # It's already a PIL.Image object
+                img = image
             response = model.generate_content([prompt, message_content, img] if message_content else [prompt, img])
-            responses.append(f"Response for {image_path.name}:\n{response.text}")
+            responses.append(f"Response for {getattr(image, 'name', 'chat history image')}:\n{response.text}")
         return "\n\n".join(responses)
     else:
         response = model.generate_content([prompt, message_content] if message_content else [prompt])

@@ -8,9 +8,9 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                              QWidget, QPushButton, QComboBox, QTextEdit, QFileDialog, 
                              QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit,
                              QStyleFactory, QTextBrowser)
-from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase, QImage)
+from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase, QImage,QTextImageFormat)
 from PyQt6.QtCore import (QUrl, Qt)
-from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PyQt6.QtNetwork import (QNetworkAccessManager, QNetworkRequest, QNetworkReply)
 from model_interact import AIPlayground
 from prep_file import context_directory
 
@@ -21,7 +21,7 @@ class AIPlaygroundGUI(QMainWindow):
         self.setWindowTitle("AI Playground")
         self.setGeometry(100, 100, 1000, 700)
         self.network_manager = QNetworkAccessManager()
-        self.network_manager.finished.connect(self.on_image_downloaded)
+      # self.network_manager.finished.connect(self.on_image_downloaded)
 
         self.playground = AIPlayground(context_dir=None)
         self.file_path = None
@@ -194,7 +194,7 @@ class AIPlaygroundGUI(QMainWindow):
         if dev == "google":
             self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro"])
         elif dev == "openai":
-            self.model_combo.addItems(["gpt-4o-mini", "gpt-4o"])
+            self.model_combo.addItems(["gpt-4o-mini", "gpt-4o", "dall-e-3"])
         elif dev == "mistral":
             self.model_combo.addItems(["open-mistral-nemo", "mistral-large-latest","codestral-latest"])
 
@@ -250,8 +250,10 @@ class AIPlaygroundGUI(QMainWindow):
                     max_tokens=int(self.max_tok_input.text()),
                     include_chat_history=include_history
                 )
+
                 total_files = len(batch_results)
                 html_output = ""
+
                 for i, (file_path, response) in enumerate(batch_results.items()):
                     html_output += f"<h3>File: {file_path}</h3>"
                     html_output += self.markdown_to_html(response)
@@ -261,6 +263,7 @@ class AIPlaygroundGUI(QMainWindow):
                     QApplication.processEvents()
                 self.output_widget.append(html_output)
                 self.progress_bar.setVisible(False)
+            
             else:
                 response = self.playground.process_prompt(
                     prompt=prompt,
@@ -271,23 +274,29 @@ class AIPlaygroundGUI(QMainWindow):
                     include_chat_history=include_history
                 )
                 
-                # Convert response to HTML
-                html_response = self.markdown_to_html(response)
-                
-                # Handle images
-                if "http://" in response or "https://" in response:
-                    urls = [word for word in response.split() if word.startswith(('http://', 'https://'))]
-                    for url in urls:
-                        html_response = html_response.replace(url, f'<img src="{url}" />')
-                elif "file://" in response:
-                    file_paths = [word for word in response.split() if word.startswith('file://')]
-                    for file_path in file_paths:
-                        html_response = html_response.replace(file_path, self.embed_image(file_path[7:]))
-                
-                # Append new response to the existing content
-                self.output_widget.append(f"<strong>User:</strong> {prompt}")
-                self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
-                self.output_widget.append("<hr>")
+                # Handle image generation models
+                if model == "dall-e-3":
+                    self.handle_image_response(response)
+                    # Store the generated image URL in conversation history
+                    self.playground.conversation.add_message("Assistant", "Generated image", response)
+                else:
+                    # Convert response to HTML
+                    html_response = self.markdown_to_html(response)
+                    
+                    # Handle images
+                    if "http://" in response or "https://" in response:
+                        urls = [word for word in response.split() if word.startswith(('http://', 'https://'))]
+                        for url in urls:
+                            html_response = html_response.replace(url, f'<img src="{url}" />')
+                    elif "file://" in response:
+                        file_paths = [word for word in response.split() if word.startswith('file://')]
+                        for file_path in file_paths:
+                            html_response = html_response.replace(file_path, self.embed_image(file_path[7:]))
+                    
+                    # Append new response to the existing content
+                    self.output_widget.append(f"<strong>User:</strong> {prompt}")
+                    self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
+                    self.output_widget.append("<hr>")
         
         except Exception as e:
             self.output_widget.append(f"<p style='color: red;'>Error: {str(e)}</p>")
@@ -296,7 +305,77 @@ class AIPlaygroundGUI(QMainWindow):
         self.output_widget.verticalScrollBar().setValue(
             self.output_widget.verticalScrollBar().maximum()
         )
-    
+
+    def handle_image_response(self, response):
+        print(f"Handling image response: {response[:100]}...")  # Add this line for debugging
+        if isinstance(response, str) and response.startswith("http"):
+            # It's an image URL, download and display it
+            self.download_and_display_image(response)
+        elif isinstance(response, QImage):
+            # It's already a QImage, display it directly
+            self.display_image(response, url=None)  # You might want to store the URL somewhere if available
+        else:
+            # It's probably an error message, display it as text
+            self.output_widget.append(f"<strong>Assistant:</strong> {response}")
+
+    def download_and_display_image(self, url):
+        print(f"Downloading image from URL: {url}")
+        request = QNetworkRequest(QUrl(url))
+        reply = self.network_manager.get(request)
+        # Connect the finished signal to a lambda function that passes both reply and url
+        reply.finished.connect(lambda: self.on_image_downloaded(reply, url))
+
+    def on_image_downloaded(self, reply, url):
+        error = reply.error()
+        if error == QNetworkReply.NetworkError.NoError:
+            image_data = reply.readAll()
+            image = QImage()
+            image.loadFromData(image_data)
+            if not image.isNull():
+                self.display_image(image, url)
+            else:
+                print("Error: Downloaded image is null")
+                self.output_widget.append("Error: Unable to load the image.")
+        else:
+            error_message = f"Error downloading image: {reply.errorString()}"
+            print(error_message)
+            self.output_widget.append(error_message)
+
+    def display_image(self, image, url=None):
+        pixmap = QPixmap.fromImage(image)
+        if not pixmap.isNull():
+            scaled_pixmap = pixmap.scaledToWidth(300, Qt.TransformationMode.SmoothTransformation)
+            image_label = QLabel()
+            image_label.setPixmap(scaled_pixmap)
+            self.output_widget.insertHtml('<br>')
+            cursor = self.output_widget.textCursor()
+            cursor.insertText('\n')
+            self.output_widget.setTextCursor(cursor)
+            self.output_widget.insertHtml('<br>')
+            
+            # Create a unique name for each image
+            image_name = f"generated_image_{id(image)}"
+            
+            # Add the image to the document's resource collection
+            self.output_widget.document().addResource(
+                QTextDocument.ResourceType.ImageResource,
+                QUrl(image_name), 
+                scaled_pixmap
+            )
+            
+            # Create an image format and insert it into the document
+            image_format = QTextImageFormat()
+            image_format.setName(image_name)
+            image_format.setWidth(scaled_pixmap.width())
+            image_format.setHeight(scaled_pixmap.height())
+            cursor.insertImage(image_format)
+            
+            # Add the hyperlink with the image URL
+            if url:
+                self.output_widget.insertHtml(f'<br><a href="{url}">Image-link</a><br><br>')
+            else:
+                self.output_widget.insertHtml('<br><br>')
+
     def clear_output(self):
         self.output_widget.clear()
         self.playground.clear_history()
@@ -341,6 +420,10 @@ class AIPlaygroundGUI(QMainWindow):
         with open(image_path, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
         return f'<img src="data:image/png;base64,{encoded_string}" />'
+
+    def closeEvent(self, event):
+        self.clear_output()
+        event.accept()  # Accept the event to close the window
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
