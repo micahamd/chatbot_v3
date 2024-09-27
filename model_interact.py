@@ -139,7 +139,6 @@ class AIPlayground:
         
         context = self.cached_context or self.context_dir
         
-        # Ensure context is a string path
         if isinstance(context, dict):
             print("Cached context is a dictionary. Writing to temporary file.")
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp:
@@ -151,26 +150,44 @@ class AIPlayground:
         
         print(f"Using context path: {context_path}")
         
-        result = model_playground(
-            prompt, 
-            dev=dev, 
-            file_path=file_path,
-            context_dir=context_path,
-            model_name=model_name,
-            max_tokens=max_tokens,
-            conversation=self.conversation,
-            include_chat_history=include_chat_history
-        )
-        self._print_response(dev, prompt, result["response"])
+        # Extract chat history images
+        chat_history_images = []
+        if include_chat_history:
+            for message in self.conversation.messages:
+                if 'image' in message:
+                    if dev == 'openai':
+                        # For OpenAI, we can pass the image URL or base64 string directly
+                        chat_history_images.append(message['image'])
+                    else:
+                        # For other methods, we process the image as before
+                        if message['image'].startswith('http'):
+                            response = requests.get(message['image'])
+                            image = Image.open(io.BytesIO(response.content))
+                        else:
+                            image_data = base64.b64decode(message['image'])
+                            image = Image.open(io.BytesIO(image_data))
+                        chat_history_images.append(image)
+        
+        if dev == 'google':
+            result = gemini_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
+        elif dev == 'openai':
+            result = gpt_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
+        elif dev == 'mistral':
+            result = mistral_api(prompt, file_path, context_path, model_name, max_tokens)
+        else:
+            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', or 'mistral'.")
+        
+        self._print_response(dev, prompt, result)
+        self.conversation.add_message("User", prompt)
+        self.conversation.add_message("Assistant", result)
         self.save_history()
         
-        # Clean up temporary file if it was created
         if isinstance(context, dict) and 'temp' in locals():
             import os
             os.unlink(temp.name)
             print(f"Temporary context file removed: {temp.name}")
         
-        return result["response"]
+        return result
 
     def update_context(self):
         if self.context_cache and self.context_dir:
