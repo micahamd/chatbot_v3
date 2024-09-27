@@ -82,7 +82,7 @@ class AIPlaygroundGUI(QMainWindow):
         # Developer and Model selection
         dev_model_layout = QHBoxLayout()
         self.dev_combo = QComboBox()
-        self.dev_combo.addItems(["google", "openai", "mistral"])
+        self.dev_combo.addItems(["google", "openai", "mistral", "anthropic"])  # Added "anthropic"
         self.dev_combo.currentIndexChanged.connect(self.update_model_options)
         dev_model_layout.addWidget(QLabel("AI Provider:"))
         dev_model_layout.addWidget(self.dev_combo)
@@ -197,6 +197,8 @@ class AIPlaygroundGUI(QMainWindow):
             self.model_combo.addItems(["gpt-4o-mini", "gpt-4o", "dall-e-3"])
         elif dev == "mistral":
             self.model_combo.addItems(["open-mistral-nemo", "mistral-large-latest","codestral-latest"])
+        elif dev == "anthropic":  # Added Anthropic models
+            self.model_combo.addItems(["claude-3-5-sonnet-20240620", "claude-3-opus-20240229","claude-3-haiku-20240307"])
 
     def select_context_directory(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Context Directory")

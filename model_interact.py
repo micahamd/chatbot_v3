@@ -1,6 +1,7 @@
 from google_method import gemini_api
 from mistral_method import mistral_api
 from openai_method import gpt_api
+from claude_method import claude_api
 from typing import List, Dict, Any, Optional
 from read_json_text import extract_json_text
 from prep_file import combine_json, context_directory, ContextCache
@@ -174,8 +175,10 @@ class AIPlayground:
             result = gpt_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
         elif dev == 'mistral':
             result = mistral_api(prompt, file_path, context_path, model_name, max_tokens)
+        elif dev == 'anthropic':  # Add this condition for Anthropic
+            result = claude_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
         else:
-            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', or 'mistral'.")
+            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', or 'anthropic'.")
         
         self._print_response(dev, prompt, result)
         self.conversation.add_message("User", prompt)
