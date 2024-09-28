@@ -4,7 +4,7 @@ from prep_file import combine_json, context_directory, extract_text_content, ext
 from pathlib import Path
 import base64
 
-def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Optional[str] = None, model_name: str = 'mannix/llama3.1-8b-abliterated:latest', max_tokens: int = 1000, chat_history_images: Optional[List] = None) -> str:
+def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Optional[str] = None, model_name: str = 'mannix/llama3.1-8b-abliterated:latest', max_tokens: int = 1000, chat_history_images: Optional[List] = None, chat_history: Optional[str] = None) -> str:
     print(f"Ollama API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -64,9 +64,9 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
             img_data = process_image(img_path)
             if img_data:
                 img_response = ollama.chat(model='minicpm-v:latest', messages=[
-                    {'role': 'user', 'content': "Describe this image in detail:", 'images': [img_data]}
+                    {'role': 'user', 'content': "Describe this image in 50 words or less:", 'images': [img_data]}
                 ])
-                description = f"Image {img_path.name}: {img_response['message']['content']}"
+                description = f"Image {getattr(img_path, 'name', 'chat history image')}: {img_response['message']['content']}"
                 image_descriptions.append(description)
                 print(description)  # Output each image description as it's generated
             else:
@@ -80,6 +80,11 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
     full_content = f"Context: {context_content}\n\nFile: {file_content}\n\n"
     if image_descriptions:
         full_content += "Image Descriptions:\n" + "\n".join(image_descriptions) + "\n\n"
+    
+    # Add chat history if available
+    if chat_history:
+        full_content += f"Chat History:\n{chat_history}\n\n"
+    
     full_content += f"User: {prompt}"
 
     print(f"Full content to be sent to the model (first 1000 chars): {full_content[:1000]}")
@@ -97,12 +102,12 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
         return error_msg
 
 # Example usage
-if __name__ == "__main__":
-    response = ollama_api(
-        prompt="Summarise this for a 5-year old",
-        file_path=r"C:\Users\micah\Downloads\fpsyg-10-00457.pdf",
-        context_dir=None,
-        model_name="mannix/llama3.1-8b-abliterated:latest",
-        max_tokens=100
-    )
-    print(response)
+# if __name__ == "__main__":
+#     response = ollama_api(
+#         prompt="Write a brief abstract of this study",
+#         file_path=r"C:\Users\micah\Downloads\fpsyg-10-00457.pdf",
+#         context_dir=None,
+#         model_name="mannix/llama3.1-8b-abliterated:latest",
+#         max_tokens=100
+#     )
+#     print(response)

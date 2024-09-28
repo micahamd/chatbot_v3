@@ -2,6 +2,7 @@ from google_method import gemini_api
 from mistral_method import mistral_api
 from openai_method import gpt_api
 from claude_method import claude_api
+from ollama_method import ollama_api 
 from typing import List, Dict, Any, Optional
 from read_json_text import extract_json_text
 from prep_file import combine_json, context_directory, ContextCache
@@ -151,16 +152,16 @@ class AIPlayground:
         
         print(f"Using context path: {context_path}")
         
-        # Extract chat history images
+        # Prepare chat history
+        chat_history = self.conversation.get_full_conversation() if include_chat_history else ""
         chat_history_images = []
         if include_chat_history:
             for message in self.conversation.messages:
                 if 'image' in message:
-                    if dev == 'openai':
-                        # For OpenAI, we can pass the image URL or base64 string directly
+                    if dev in ['openai', 'ollama']:
                         chat_history_images.append(message['image'])
                     else:
-                        # For other methods, we process the image as before
+                        # Process image for other methods
                         if message['image'].startswith('http'):
                             response = requests.get(message['image'])
                             image = Image.open(io.BytesIO(response.content))
@@ -168,17 +169,20 @@ class AIPlayground:
                             image_data = base64.b64decode(message['image'])
                             image = Image.open(io.BytesIO(image_data))
                         chat_history_images.append(image)
-        
+
+        # Call the appropriate API method
         if dev == 'google':
             result = gemini_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
         elif dev == 'openai':
             result = gpt_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
         elif dev == 'mistral':
             result = mistral_api(prompt, file_path, context_path, model_name, max_tokens)
-        elif dev == 'anthropic':  # Add this condition for Anthropic
+        elif dev == 'anthropic':
             result = claude_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
+        elif dev == 'ollama':
+            result = ollama_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history)
         else:
-            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', or 'anthropic'.")
+            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', 'anthropic', or 'ollama'.")
         
         self._print_response(dev, prompt, result)
         self.conversation.add_message("User", prompt)
