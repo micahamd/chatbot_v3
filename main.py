@@ -296,7 +296,16 @@ class AIPlaygroundGUI(QMainWindow):
                     self.handle_image_response(response)
                     self.playground.conversation.add_message("Assistant", "Generated image", response)
                 else:
-                    html_response = self.markdown_to_html(response)
+                    # Split the response into image summaries and content summary if applicable
+                    if "Image summaries:" in response and "Content summary:" in response:
+                        parts = response.split("Content summary:", 1)
+                        image_summaries = parts[0].replace("Image summaries:", "").strip()
+                        content_summary = parts[1].strip()
+                        
+                        html_response = f"<strong>Image Summaries:</strong><br>{self.markdown_to_html(image_summaries)}<br><br>"
+                        html_response += f"<strong>Content Summary:</strong><br>{self.markdown_to_html(content_summary)}"
+                    else:
+                        html_response = self.markdown_to_html(response)
                     
                     # Handle images in the response
                     if "http://" in response or "https://" in response:
@@ -312,10 +321,12 @@ class AIPlaygroundGUI(QMainWindow):
                     self.output_widget.append(f"<strong>User:</strong> {prompt}")
                     self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
                     self.output_widget.append("<hr>")
-                            # Add the user's prompt and the assistant's response to the conversation history
+                    
+                    # Add the user's prompt and the assistant's response to the conversation history
                     self.playground.conversation.add_message("User", prompt)
                     self.playground.conversation.add_message("Assistant", response)
-                    # Scroll to the bottom of the output widget
+      
+            # Scroll to the bottom of the output widget
             self.output_widget.verticalScrollBar().setValue(
                 self.output_widget.verticalScrollBar().maximum()
             )

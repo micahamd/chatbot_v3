@@ -40,10 +40,10 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
                 quality="standard",
                 n=1,
             )
-            return response.data[0].url
+            return "", response.data[0].url
         except Exception as e:
             print(f"Error generating image: {e}")
-            return f"Error generating image: {str(e)}"
+            return "", f"Error generating image: {str(e)}"
 
     json_file = {}
     if file_path:
@@ -56,122 +56,77 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
     text_content = extract_text_content(json_file) or ''
     context_content = extract_text_content(context_json) or ''
 
-    messages = [
-        {"role": "system", "content": "You are a helpful assistant."}
-    ]
-
-    if context_content:
-        messages.append({"role": "user", "content": [{"type": "text", "text": f"Context: {context_content}"}]})
-    if text_content:
-        messages.append({"role": "user", "content": [{"type": "text", "text": f"File content: {text_content}"}]})
-
-    # Prepare the content for the final message
-    final_content = [{"type": "text", "text": prompt}]
-
-    image_summaries = ""
+    image_summaries = []
     if not image_skip:
-        # Add images from json_file and context_json
+        # Process images and generate summaries
+        image_urls = []
         def extract_image_urls(json_data):
-            image_urls = []
+            urls = []
             if isinstance(json_data, dict):
                 images = json_data.get('image_JSON', {}).get('images', [])
                 for image_info in images:
                     image_url = image_info.get('url', '')
                     if image_url:
-                        image_urls.append(image_url)
+                        urls.append(image_url)
             elif isinstance(json_data, dict):
                 for file_data in json_data.values():
-                    image_urls.extend(extract_image_urls(file_data))
-            return image_urls
-
-        all_image_urls = extract_image_urls(json_file) + extract_image_urls(context_json)
-
-        for image_url in all_image_urls:
+                    urls.extend(extract_image_urls(file_data))
+            return urls
+    
+        image_urls.extend(extract_image_urls(json_file))
+        image_urls.extend(extract_image_urls(context_json))
+        if chat_history_images:
+            image_urls.extend(chat_history_images)
+    
+        for image_url in image_urls:
             try:
+                image_content = None
                 if image_url.startswith('file://'):
-                    # Local file
-                    image_path = Path(image_url[7:])  # Remove 'file://' prefix
+                    image_path = Path(image_url[7:])
                     if image_path.exists():
                         with open(image_path, "rb") as image_file:
                             image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                        final_content.append({
+                        image_content = {
                             "type": "image_url",
                             "image_url": {
                                 "url": f"data:image/png;base64,{image_data}",
                                 "detail": "auto"
                             }
-                        })
-                        print(f"Successfully processed image: {image_url}")
-                    else:
-                        print(f"Image file not found: {image_url}")
+                        }
                 else:
-                    # Remote URL
-                    final_content.append({
+                    image_content = {
                         "type": "image_url",
                         "image_url": {
                             "url": image_url,
                             "detail": "auto"
                         }
-                    })
-                    print(f"Successfully processed image: {image_url}")
-            except Exception as e:
-                print(f"Error processing image {image_url}: {str(e)}")
-
-                # Process images and generate summaries
-                image_summary_messages = [
-                    {"role": "system", "content": "You are a helpful assistant. Describe each image in 50 words or less."}
-                ]
-
-                for image_content in final_content[1:]:  # Skip the first element which is the text content
-                    image_summary_messages.append({"role": "user", "content": [image_content]})
-
-                try:
+                    }
+                
+                if image_content:
+                    image_summary_messages = [
+                        {"role": "system", "content": "You are a helpful assistant. Describe the following image in 50 words or less."},
+                        {"role": "user", "content": [image_content]}
+                    ]
+                    
                     image_summary_response = client.chat.completions.create(
                         model=full_model_name,
                         messages=image_summary_messages,
                         max_tokens=max_tokens
                     )
-                    image_summaries = image_summary_response.choices[0].message.content
-                except Exception as e:
-                    print(f"Error generating image summaries: {e}")
-                    image_summaries = f"Error generating image summaries: {str(e)}"
-                        # Generate content summary without images
-            content_summary_messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": [{"type": "text", "text": f"{context_content}\n\n{text_content}\n\n{prompt}"}]}
-            ]
+                    summary = image_summary_response.choices[0].message.content
+                    image_summaries.append(f"Image {Path(image_url).name}: {summary}")
+                    print(f"Successfully processed image: {image_url}")
+                else:
+                    print(f"Skipped image processing for: {image_url}")
+            except Exception as e:
+                print(f"Error processing image {image_url}: {str(e)}")
+                image_summaries.append(f"Error processing image {Path(image_url).name}: {str(e)}")
 
-        # Add chat history images
-        if chat_history_images:
-            for image in chat_history_images:
-                try:
-                    if isinstance(image, str):  # It's a URL
-                        final_content.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image,
-                                "detail": "auto"
-                            }
-                        })
-                    else:  # It's a PIL Image object
-                        buffered = io.BytesIO()
-                        image.save(buffered, format="PNG")
-                        img_str = base64.b64encode(buffered.getvalue()).decode()
-                        final_content.append({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{img_str}",
-                                "detail": "auto"
-                            }
-                        })
-                    print(f"Successfully processed chat history image")
-                except Exception as e:
-                    print(f"Error processing chat history image: {str(e)}")
-
-    messages.append({"role": "user", "content": final_content})
-
-    print(f"Number of messages: {len(messages)}")
-    print(f"Number of images processed: {len(final_content) - 1}")  # Subtract 1 for the text content
+    # Generate content summary
+    content_summary_messages = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": f"{context_content}\n\n{text_content}\n\n{prompt}"}
+    ]
 
     try:
         content_summary_response = client.chat.completions.create(
@@ -180,7 +135,12 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
             max_tokens=max_tokens
         )
         content_summary = content_summary_response.choices[0].message.content
-        return image_summaries, content_summary
+        
+        if image_skip:
+            return "", content_summary
+        else:
+            combined_response = f"Image summaries:\n\n{' '.join(image_summaries)}\n\nContent summary:\n\n{content_summary}"
+            return combined_response, ""
     except Exception as e:
         error_msg = f"Error generating content summary: {e}"
         print(error_msg)

@@ -174,6 +174,7 @@ class AIPlayground:
         if include_chat_history and not image_skip:
             for message in self.conversation.messages:
                 if 'image' in message:
+                    chat_history_images.append(message['image'])
                     if dev in ['openai', 'ollama']:
                         chat_history_images.append(message['image'])
                     else:
