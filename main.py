@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                              QWidget, QPushButton, QComboBox, QTextEdit, QFileDialog, 
                              QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit,
                              QStyleFactory, QTextBrowser)
-from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase, QImage,QTextImageFormat)
+from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase, QImage, QTextImageFormat)
 from PyQt6.QtCore import (QUrl, Qt)
 from PyQt6.QtNetwork import (QNetworkAccessManager, QNetworkRequest, QNetworkReply)
 from model_interact import AIPlayground
@@ -108,9 +108,15 @@ class AIPlaygroundGUI(QMainWindow):
         self.prompt_input.setPlaceholderText("Enter your prompt here...")
         layout.addWidget(self.prompt_input)
 
+
         # Include chat history
         self.include_history_checkbox = QCheckBox("Include Chat History")
         layout.addWidget(self.include_history_checkbox)
+
+        # Image skip checkbox
+        self.image_skip_checkbox = QCheckBox("Skip Image Processing")
+        self.image_skip_checkbox.setChecked(True)  # Default to checked
+        layout.addWidget(self.image_skip_checkbox)
 
         # Add file selection
         file_layout = QHBoxLayout()
@@ -232,17 +238,21 @@ class AIPlaygroundGUI(QMainWindow):
         except Exception as e:
             self.file_label.setText(f"Error: {str(e)}")
 
+
     def process_request(self):
         try:
             prompt = self.prompt_input.toPlainText()
             dev = self.dev_combo.currentText()
             model = self.model_combo.currentText()
-            
+
             if self.context_checkbox.isChecked() and self.playground.context_dir:
                 self.playground.update_context()
-            
+
             include_history = self.include_history_checkbox.isChecked()
-            
+            image_skip = self.image_skip_checkbox.isChecked()
+
+            print(f"Image skip: {image_skip}")  # Add this line for debugging
+
             if self.batch_dir:
                 self.progress_bar.setVisible(True)
                 self.progress_bar.setMaximum(100)
@@ -252,12 +262,13 @@ class AIPlaygroundGUI(QMainWindow):
                     dev,
                     model_name=model,
                     max_tokens=int(self.max_tok_input.text()),
-                    include_chat_history=include_history
+                    include_chat_history=include_history,
+                    image_skip=image_skip  # Add this parameter
                 )
-
+    
                 total_files = len(batch_results)
                 html_output = ""
-
+    
                 for i, (file_path, response) in enumerate(batch_results.items()):
                     html_output += f"<h3>File: {file_path}</h3>"
                     html_output += self.markdown_to_html(response)
@@ -275,7 +286,8 @@ class AIPlaygroundGUI(QMainWindow):
                     file_path=self.file_path,
                     model_name=model,
                     max_tokens=int(self.max_tok_input.text()),
-                    include_chat_history=include_history
+                    include_chat_history=include_history,
+                    image_skip=image_skip
                 )
                 
                 # Handle image generation models
@@ -309,7 +321,6 @@ class AIPlaygroundGUI(QMainWindow):
         self.output_widget.verticalScrollBar().setValue(
             self.output_widget.verticalScrollBar().maximum()
         )
-
     def handle_image_response(self, response):
         print(f"Handling image response: {response[:100]}...")  # Add this line for debugging
         if isinstance(response, str) and response.startswith("http"):

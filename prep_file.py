@@ -32,12 +32,19 @@ def combine_json(file_path, image_skip=False):
 
 # Text extraction method
 def extract_text_content(json_file):
+    print(f"Extracting text content from: {type(json_file)}")
     if isinstance(json_file, dict):
         if 'text_JSON' in json_file:
-            return json_file['text_JSON'].get('content', {}).get('text', '')
+            text = json_file['text_JSON'].get('content', {}).get('text', '') or ''
+            print(f"Extracted text content length: {len(text)}")
+            return text
         else:
             # If it's a dictionary of files, concatenate all text content
-            return '\n\n'.join(extract_text_content(file_json) for file_json in json_file.values())
+            texts = [extract_text_content(file_json) for file_json in json_file.values()]
+            combined_text = '\n\n'.join(texts)
+            print(f"Combined text content length: {len(combined_text)}")
+            return combined_text
+    print("No text content extracted")
     return ''
 
 # For iterating over images in a directory

@@ -5,7 +5,7 @@ from claude_method import claude_api
 from ollama_method import ollama_api 
 from typing import List, Dict, Any, Optional
 from read_json_text import extract_json_text
-from prep_file import combine_json, context_directory, ContextCache
+from prep_file import combine_json, context_directory, extract_text_content, ContextCache
 import markdown2
 import webbrowser
 import os
@@ -122,8 +122,9 @@ class AIPlayground:
 
     def clear_history(self):
         self.conversation = Conversation()
+        self.chat_history_images = []  # Explicitly clear any stored images
         self.save_history()
-        print("Conversation history cleared.")
+        print("Conversation history and associated images cleared.")
 
     def batch_process(self, directory, prompt, dev, model_name, max_tokens=1000, include_chat_history=True, file_pattern="*.*"):
         results = {}
@@ -135,9 +136,10 @@ class AIPlayground:
                 results[file_path] = response
         return results
 
-    def process_prompt(self, prompt: str, dev: str, file_path: str = None, model_name: str = None, max_tokens: int = 1000, include_chat_history: bool = True):
+    def process_prompt(self, prompt: str, dev: str, file_path: str = None, model_name: str = None, max_tokens: int = 1000, include_chat_history: bool = True, image_skip: bool = True):
         print(f"Processing prompt with context_dir: {self.context_dir}")
         print(f"Cached context available: {self.cached_context is not None}")
+        print(f"Image skip: {image_skip}")  # Add this line for debugging
         
         context = self.cached_context or self.context_dir
         
@@ -152,10 +154,24 @@ class AIPlayground:
         
         print(f"Using context path: {context_path}")
         
+        # Extract text content from file_path
+        file_content = ""
+        if file_path:
+            json_file = combine_json(file_path, image_skip=image_skip)
+            file_content = extract_text_content(json_file)
+            print(f"Extracted file content length: {len(file_content)}")
+    
+        # Extract text content from context
+        context_content = ""
+        if context_path:
+            context_json = context_directory(context_path, image_skip=image_skip, use_cache=True)
+            context_content = extract_text_content(context_json)
+            print(f"Extracted context content length: {len(context_content)}")
+        
         # Prepare chat history
         chat_history = self.conversation.get_full_conversation() if include_chat_history else ""
         chat_history_images = []
-        if include_chat_history:
+        if include_chat_history and not image_skip:
             for message in self.conversation.messages:
                 if 'image' in message:
                     if dev in ['openai', 'ollama']:
@@ -169,20 +185,25 @@ class AIPlayground:
                             image_data = base64.b64decode(message['image'])
                             image = Image.open(io.BytesIO(image_data))
                         chat_history_images.append(image)
-
+    
+        # Combine all text content
+        full_content = f"{context_content}\n\n{file_content}\n\n{chat_history}\n\nUser: {prompt}"
+        print(f"Full content length: {len(full_content)}")
+    
         # Call the appropriate API method
         if dev == 'google':
-            result = gemini_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
+            result = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
         elif dev == 'openai':
-            result = gpt_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
+            result = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
         elif dev == 'mistral':
-            result = mistral_api(prompt, file_path, context_path, model_name, max_tokens)
+            result = mistral_api(full_content, file_path, context_path, model_name, max_tokens)
         elif dev == 'anthropic':
-            result = claude_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images)
+            result = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
         elif dev == 'ollama':
-            result = ollama_api(prompt, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history)
+            result = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history, image_skip)
         else:
             raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', 'anthropic', or 'ollama'.")
+    
         
         self._print_response(dev, prompt, result)
         self.conversation.add_message("User", prompt)
