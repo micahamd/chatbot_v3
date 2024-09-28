@@ -80,7 +80,7 @@ def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-so
     
     # Add images if not skipping
     image_summaries = ""
-    if not image_skip:
+    if not image_skip and all_img_paths:
         # Process images and generate summaries
         image_summary_messages = [{"role": "user", "content": [{"type": "text", "text": "Describe each image in 50 words or less:"}]}]
         for img_path in all_img_paths:
@@ -103,12 +103,15 @@ def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-so
             except Exception as e:
                 print(f"Error processing image {img_path}: {str(e)}")
 
-    image_summary_response = client.messages.create(
-            model=model_name,
-            max_tokens=max_tokens,
-            messages=image_summary_messages
-    )
-    image_summaries = image_summary_response.content[0].text
+        try:
+            image_summary_response = client.messages.create(
+                model=model_name,
+                max_tokens=max_tokens,
+                messages=image_summary_messages
+            )
+            image_summaries = image_summary_response.content[0].text
+        except Exception as e:
+            print(f"Error generating image summaries: {str(e)}")
 
     # Generate content summary without images
     content_summary_messages = [{"role": "user", "content": [{"type": "text", "text": f"{message_content}\n\n{prompt}"}]}]

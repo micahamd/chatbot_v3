@@ -126,13 +126,13 @@ class AIPlayground:
         self.save_history()
         print("Conversation history and associated images cleared.")
 
-    def batch_process(self, directory, prompt, dev, model_name, max_tokens=1000, include_chat_history=True, file_pattern="*.*"):
+    def batch_process(self, directory, prompt, dev, model_name, max_tokens=1000, include_chat_history=True, file_pattern="*.*", image_skip=True):
         results = {}
         for file_path in glob.glob(os.path.join(directory, "**", file_pattern), recursive=True):
             if os.path.isfile(file_path):
                 file_content = extract_json_text(file_path)["content"]["text"]
                 file_prompt = f"{prompt}\n\nFile: {os.path.basename(file_path)}\nContent: {file_content}\n\nResponse:"
-                response = self.process_prompt(file_prompt, dev, file_path, model_name, max_tokens, include_chat_history)
+                response = self.process_prompt(file_prompt, dev, file_path, model_name, max_tokens, include_chat_history, image_skip)
                 results[file_path] = response
         return results
 

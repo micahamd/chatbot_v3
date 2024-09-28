@@ -244,16 +244,16 @@ class AIPlaygroundGUI(QMainWindow):
             prompt = self.prompt_input.toPlainText()
             dev = self.dev_combo.currentText()
             model = self.model_combo.currentText()
-
+    
             if self.context_checkbox.isChecked() and self.playground.context_dir:
                 self.playground.update_context()
-
+    
             include_history = self.include_history_checkbox.isChecked()
             image_skip = self.image_skip_checkbox.isChecked()
-
+    
             print(f"Image skip: {image_skip}")
             print(f"Include chat history: {include_history}") 
-
+    
             if self.batch_dir:
                 self.progress_bar.setVisible(True)
                 self.progress_bar.setMaximum(100)
@@ -266,10 +266,10 @@ class AIPlaygroundGUI(QMainWindow):
                     include_chat_history=include_history,
                     image_skip=image_skip  # Add this parameter
                 )
-    
+        
                 total_files = len(batch_results)
                 html_output = ""
-    
+        
                 for i, (file_path, response) in enumerate(batch_results.items()):
                     html_output += f"<h3>File: {file_path}</h3>"
                     html_output += self.markdown_to_html(response)
