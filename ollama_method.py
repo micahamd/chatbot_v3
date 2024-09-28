@@ -5,7 +5,7 @@ from pathlib import Path
 import base64
 import json
 
-def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Optional[str] = None, model_name: str = 'llama2', max_tokens: int = 1000, chat_history_images: Optional[List] = None, chat_history: Optional[str] = None, image_skip: bool = False) -> str:
+def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Optional[str] = None, model_name: str = 'llama2', max_tokens: int = 1000, chat_history_images: Optional[List] = None, chat_history: Optional[str] = None, image_skip: bool = False) -> tuple[str, str]:
     print(f"Ollama API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -51,7 +51,6 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
 
     # Process images only if not skipping
     image_descriptions = []
-    image_summaries = ""
     if not image_skip:
         all_images = []
         
@@ -82,7 +81,7 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
                     img_response = ollama.chat(model='minicpm-v:latest', messages=[
                         {'role': 'user', 'content': "Describe this image in 50 words or less:", 'images': [img_data]}
                     ])
-                    description = f"Image {getattr(img_path, 'name', 'chat history image')}: {img_response['message']['content']}"
+                    description = f"Image {getattr(img_path, 'name', 'chat history image')}:\n{img_response['message']['content']}"
                     image_descriptions.append(description)
                     print(description)
                 else:
@@ -91,16 +90,12 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
                 error_msg = f"Error processing image {img_path}: {str(e)}"
                 print(error_msg)
                 image_descriptions.append(error_msg)
-    else:
-        print("Image processing skipped.")
-        image_summaries = "\n".join(image_descriptions)
+    
+    # Combine image descriptions
+    image_summaries = "\n\n".join(image_descriptions) if image_descriptions else ""
 
     # Combine all content
     messages = [{'role': 'system', 'content': "You are a helpful assistant."}]
-    
-    # Add image descriptions first (if any)
-    if image_descriptions:
-        messages.append({'role': 'user', 'content': "\n".join(image_descriptions)})
     
     # Add text content (context and file content)
     text_content_parts = []
@@ -111,6 +106,10 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
     
     if text_content_parts:
         messages.append({'role': 'user', 'content': "\n\n".join(text_content_parts)})
+    
+    # Add image summaries
+    if image_summaries:
+        messages.append({'role': 'user', 'content': f"Image summaries:\n\n{image_summaries}"})
     
     # Process chat history
     if chat_history:
@@ -124,6 +123,7 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
             print("Failed to parse chat history as JSON. Adding as plain text.")
             messages.append({'role': 'user', 'content': f"Chat history: {chat_history}"})
     
+    # Add the user's prompt
     messages.append({'role': 'user', 'content': f"User query: {prompt}"})
 
     print(f"Number of messages: {len(messages)}")
