@@ -62,7 +62,7 @@ def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max
     if image_skip:
         print("Image processing skipped. Generating content without images.")
         response = model.generate_content([prompt, message_content] if message_content else [prompt])
-        return response.text
+        return None, response.text
     else:
         # Process images only if image_skip is False
         all_img_paths = []
@@ -80,17 +80,18 @@ def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max
         
         print(f"Total number of images to process: {len(all_img_paths)}")
         
+        image_summaries = []
         if all_img_paths:
-            responses = []
             for image in all_img_paths:
                 print(f"Processing image: {getattr(image, 'name', 'chat history image')}")
                 if isinstance(image, (str, Path)):  # It's a file path or Path object
                     img = PIL.Image.open(str(image))
                 else:  # It's already a PIL.Image object
                     img = image
-                response = model.generate_content([prompt, message_content, img] if message_content else [prompt, img])
-                responses.append(f"Response for {getattr(image, 'name', 'chat history image')}:\n{response.text}")
-            return "\n\n".join(responses)
-        else:
-            response = model.generate_content([prompt, message_content] if message_content else [prompt])
-            return response.text
+                response = model.generate_content(["Describe this image in 50 words or less:", img])
+                image_summaries.append(f"Image {getattr(image, 'name', 'chat history image')}: {response.text}")
+
+        # Generate content summary without images
+        content_summary = model.generate_content([prompt, message_content] if message_content else [prompt])
+        
+        return "\n\n".join(image_summaries), content_summary.text

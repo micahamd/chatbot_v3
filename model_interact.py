@@ -192,19 +192,23 @@ class AIPlayground:
     
         # Call the appropriate API method
         if dev == 'google':
-            result = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
+            image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
         elif dev == 'openai':
-            result = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
+            image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
         elif dev == 'mistral':
-            result = mistral_api(full_content, file_path, context_path, model_name, max_tokens)
+            image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens)
         elif dev == 'anthropic':
-            result = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
+            image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
         elif dev == 'ollama':
-            result = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history, image_skip)
+            image_summaries, content_summary = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history, image_skip)
         else:
             raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', 'anthropic', or 'ollama'.")
-    
-        
+
+        if image_summaries:
+            result = f"Image summaries:\n\n{image_summaries}\n\nContent summary:\n\n{content_summary}"
+        else:
+            result = content_summary
+
         self._print_response(dev, prompt, result)
         self.conversation.add_message("User", prompt)
         self.conversation.add_message("Assistant", result)

@@ -68,6 +68,7 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
     # Prepare the content for the final message
     final_content = [{"type": "text", "text": prompt}]
 
+    image_summaries = ""
     if not image_skip:
         # Add images from json_file and context_json
         def extract_image_urls(json_data):
@@ -116,6 +117,30 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
             except Exception as e:
                 print(f"Error processing image {image_url}: {str(e)}")
 
+                # Process images and generate summaries
+                image_summary_messages = [
+                    {"role": "system", "content": "You are a helpful assistant. Describe each image in 50 words or less."}
+                ]
+
+                for image_content in final_content[1:]:  # Skip the first element which is the text content
+                    image_summary_messages.append({"role": "user", "content": [image_content]})
+
+                try:
+                    image_summary_response = client.chat.completions.create(
+                        model=full_model_name,
+                        messages=image_summary_messages,
+                        max_tokens=max_tokens
+                    )
+                    image_summaries = image_summary_response.choices[0].message.content
+                except Exception as e:
+                    print(f"Error generating image summaries: {e}")
+                    image_summaries = f"Error generating image summaries: {str(e)}"
+                        # Generate content summary without images
+            content_summary_messages = [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": [{"type": "text", "text": f"{context_content}\n\n{text_content}\n\n{prompt}"}]}
+            ]
+
         # Add chat history images
         if chat_history_images:
             for image in chat_history_images:
@@ -149,12 +174,14 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
     print(f"Number of images processed: {len(final_content) - 1}")  # Subtract 1 for the text content
 
     try:
-        response = client.chat.completions.create(
+        content_summary_response = client.chat.completions.create(
             model=full_model_name,
-            messages=messages,
+            messages=content_summary_messages,
             max_tokens=max_tokens
         )
-        return response.choices[0].message.content
+        content_summary = content_summary_response.choices[0].message.content
+        return image_summaries, content_summary
     except Exception as e:
-        print(f"Error generating content: {e}")
-        return f"Error: {str(e)}"
+        error_msg = f"Error generating content summary: {e}"
+        print(error_msg)
+        return "", error_msg

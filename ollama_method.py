@@ -51,6 +51,7 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
 
     # Process images only if not skipping
     image_descriptions = []
+    image_summaries = ""
     if not image_skip:
         all_images = []
         
@@ -92,6 +93,7 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
                 image_descriptions.append(error_msg)
     else:
         print("Image processing skipped.")
+        image_summaries = "\n".join(image_descriptions)
 
     # Combine all content
     messages = [{'role': 'system', 'content': "You are a helpful assistant."}]
@@ -135,10 +137,10 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
                 'temperature': 0.7,  # You can adjust this or make it a parameter
             }
         )
-        result = response['message']['content']
-        print(f"Final response: {result}")
-        return result
+        content_summary = response['message']['content']
+        print(f"Final response: {content_summary}")
+        return image_summaries, content_summary
     except Exception as e:
         error_msg = f"Error in Ollama API call: {str(e)}"
         print(error_msg)
-        return error_msg
+        return "", error_msg

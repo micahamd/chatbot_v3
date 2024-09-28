@@ -79,7 +79,10 @@ def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-so
     messages[0]["content"].append({"type": "text", "text": prompt})
     
     # Add images if not skipping
+    image_summaries = ""
     if not image_skip:
+        # Process images and generate summaries
+        image_summary_messages = [{"role": "user", "content": [{"type": "text", "text": "Describe each image in 50 words or less:"}]}]
         for img_path in all_img_paths:
             try:
                 if isinstance(img_path, (str, Path)):
@@ -89,7 +92,7 @@ def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-so
                     img_path.save(buffered, format="PNG")
                     img_data = base64.b64encode(buffered.getvalue()).decode('utf-8')
                 
-                messages[0]["content"].append({
+                image_summary_messages[0]["content"].append({
                     "type": "image",
                     "source": {
                         "type": "base64",
@@ -97,21 +100,28 @@ def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-so
                         "data": img_data
                     }
                 })
-                print(f"Successfully processed image: {getattr(img_path, 'name', 'chat history image')}")
             except Exception as e:
                 print(f"Error processing image {img_path}: {str(e)}")
-    else:
-        print("Image processing skipped.")
 
-    # Generate content
-    try:
-        response = client.messages.create(
+    image_summary_response = client.messages.create(
             model=model_name,
             max_tokens=max_tokens,
-            messages=messages
+            messages=image_summary_messages
+    )
+    image_summaries = image_summary_response.content[0].text
+
+    # Generate content summary without images
+    content_summary_messages = [{"role": "user", "content": [{"type": "text", "text": f"{message_content}\n\n{prompt}"}]}]
+    
+    try:
+        content_summary_response = client.messages.create(
+            model=model_name,
+            max_tokens=max_tokens,
+            messages=content_summary_messages
         )
-        return response.content[0].text
+        content_summary = content_summary_response.content[0].text
+        return image_summaries, content_summary
     except Exception as e:
         error_msg = f"Error in Claude API call: {str(e)}"
         print(error_msg)
-        return error_msg
+        return "", error_msg
