@@ -251,7 +251,8 @@ class AIPlaygroundGUI(QMainWindow):
             include_history = self.include_history_checkbox.isChecked()
             image_skip = self.image_skip_checkbox.isChecked()
 
-            print(f"Image skip: {image_skip}")  # Add this line for debugging
+            print(f"Image skip: {image_skip}")
+            print(f"Include chat history: {include_history}") 
 
             if self.batch_dir:
                 self.progress_bar.setVisible(True)
@@ -293,13 +294,11 @@ class AIPlaygroundGUI(QMainWindow):
                 # Handle image generation models
                 if model == "dall-e-3":
                     self.handle_image_response(response)
-                    # Store the generated image URL in conversation history
                     self.playground.conversation.add_message("Assistant", "Generated image", response)
                 else:
-                    # Convert response to HTML
                     html_response = self.markdown_to_html(response)
                     
-                    # Handle images
+                    # Handle images in the response
                     if "http://" in response or "https://" in response:
                         urls = [word for word in response.split() if word.startswith(('http://', 'https://'))]
                         for url in urls:
@@ -313,14 +312,17 @@ class AIPlaygroundGUI(QMainWindow):
                     self.output_widget.append(f"<strong>User:</strong> {prompt}")
                     self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
                     self.output_widget.append("<hr>")
-        
+                            # Add the user's prompt and the assistant's response to the conversation history
+                    self.playground.conversation.add_message("User", prompt)
+                    self.playground.conversation.add_message("Assistant", response)
+                    # Scroll to the bottom of the output widget
+            self.output_widget.verticalScrollBar().setValue(
+                self.output_widget.verticalScrollBar().maximum()
+            )
         except Exception as e:
             self.output_widget.append(f"<p style='color: red;'>Error: {str(e)}</p>")
+
         
-        # Scroll to the bottom of the output widget
-        self.output_widget.verticalScrollBar().setValue(
-            self.output_widget.verticalScrollBar().maximum()
-        )
     def handle_image_response(self, response):
         print(f"Handling image response: {response[:100]}...")  # Add this line for debugging
         if isinstance(response, str) and response.startswith("http"):

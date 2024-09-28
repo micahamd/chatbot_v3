@@ -1,8 +1,9 @@
 import ollama
-from typing import Optional, List
+from typing import Optional, List, Dict
 from prep_file import combine_json, context_directory, extract_text_content, extract_image_directory_from_json
 from pathlib import Path
 import base64
+import json
 
 def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Optional[str] = None, model_name: str = 'llama2', max_tokens: int = 1000, chat_history_images: Optional[List] = None, chat_history: Optional[str] = None, image_skip: bool = False) -> str:
     print(f"Ollama API called with prompt: {prompt[:100]}...")
@@ -109,8 +110,17 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
     if text_content_parts:
         messages.append({'role': 'user', 'content': "\n\n".join(text_content_parts)})
     
+    # Process chat history
     if chat_history:
-        messages.extend(chat_history)
+        try:
+            chat_history_messages = json.loads(chat_history)
+            if isinstance(chat_history_messages, list):
+                messages.extend(chat_history_messages)
+            else:
+                print("Chat history is not in the expected format. Skipping.")
+        except json.JSONDecodeError:
+            print("Failed to parse chat history as JSON. Adding as plain text.")
+            messages.append({'role': 'user', 'content': f"Chat history: {chat_history}"})
     
     messages.append({'role': 'user', 'content': f"User query: {prompt}"})
 
