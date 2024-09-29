@@ -15,9 +15,11 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
     # Model name mapping
     model_name_mapping = {
         'llama3.1': 'mannix/llama3.1-8b-abliterated:latest',
+        'llama3.2': 'llama3.2',
         'minicpm': 'minicpm-v:latest',
         'codestral': 'codestral:latest',
-        'phi3': 'phi3.5:latest'
+        'phi3': 'phi3.5:latest',
+        'mistral-nemo': 'mistral-nemo:latest'
     }
     full_model_name = model_name_mapping.get(model_name, model_name)
 

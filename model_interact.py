@@ -211,7 +211,7 @@ class AIPlayground:
             result = content_summary
 
         self._print_response(dev, prompt, result)
-        self.conversation.add_message("User", prompt)
+        # self.conversation.add_message("User", prompt) # Don't include user input in UI window
         self.conversation.add_message("Assistant", result)
         self.save_history()
         

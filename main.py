@@ -206,7 +206,7 @@ class AIPlaygroundGUI(QMainWindow):
         elif dev == "anthropic":
             self.model_combo.addItems(["claude-3-5-sonnet-20240620", "claude-3-opus-20240229","claude-3-haiku-20240307"])
         elif dev == "ollama":  
-            self.model_combo.addItems(["mannix/llama3.1-8b-abliterated:latest", "minicpm-v:latest","codestral:latest","phi3.5:latest"])
+            self.model_combo.addItems(["mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest", "llama3.2:latest", "minicpm-v:latest","codestral:latest","phi3.5:latest"])
 
     def select_context_directory(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Context Directory")
@@ -238,19 +238,18 @@ class AIPlaygroundGUI(QMainWindow):
         except Exception as e:
             self.file_label.setText(f"Error: {str(e)}")
 
-
     def process_request(self):
         try:
             prompt = self.prompt_input.toPlainText()
             dev = self.dev_combo.currentText()
             model = self.model_combo.currentText()
-    
+
             if self.context_checkbox.isChecked() and self.playground.context_dir:
                 self.playground.update_context()
-    
+
             include_history = self.include_history_checkbox.isChecked()
             image_skip = self.image_skip_checkbox.isChecked()
-    
+
             print(f"Image skip: {image_skip}")
             print(f"Include chat history: {include_history}") 
     
@@ -317,22 +316,19 @@ class AIPlaygroundGUI(QMainWindow):
                         for file_path in file_paths:
                             html_response = html_response.replace(file_path, self.embed_image(file_path[7:]))
                     
-                    # Append new response to the existing content
-                    self.output_widget.append(f"<strong>User:</strong> {prompt}")
+                    # Append only the assistant's response to the output
                     self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
                     self.output_widget.append("<hr>")
                     
-                    # Add the user's prompt and the assistant's response to the conversation history
-                    self.playground.conversation.add_message("User", prompt)
+                    # Add only the assistant's response to the conversation history
                     self.playground.conversation.add_message("Assistant", response)
-      
+    
             # Scroll to the bottom of the output widget
             self.output_widget.verticalScrollBar().setValue(
                 self.output_widget.verticalScrollBar().maximum()
             )
         except Exception as e:
             self.output_widget.append(f"<p style='color: red;'>Error: {str(e)}</p>")
-
         
     def handle_image_response(self, response):
         print(f"Handling image response: {response[:100]}...")  # Add this line for debugging
