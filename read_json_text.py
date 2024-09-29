@@ -30,7 +30,6 @@ def extract_json_text(file_path):
             }
         },
         "content": {
-            "text": "",
             "paragraphs": {},
             "headings": {},
             "tables": [],
@@ -58,9 +57,12 @@ def extract_json_text(file_path):
         if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
             with Image.open(file_path) as img:
                 ocr_text = apply_ocr(img)
-                result["content"]["text"] = ocr_text
                 para_hash = hash_content(ocr_text)
-                seen_paragraphs[para_hash] = ocr_text
+                result["content"]["paragraphs"][para_hash] = ocr_text
+                result["content"]["pages"].append({
+                    "page_number": 1,
+                    "paragraphs": [para_hash]
+                })
 
         # Process PDF files
         elif ext == '.pdf':
@@ -68,98 +70,113 @@ def extract_json_text(file_path):
             for page_num, page in enumerate(doc):
                 page_text = page.get_text("text")
                 page_paragraphs = page_text.split('\n\n')
-                page_headings = []
+                page_content = {
+                    "page_number": page_num + 1,
+                    "paragraphs": [],
+                    "headings": []
+                }
+                
+                for para in page_paragraphs:
+                    para_hash = hash_content(para)
+                    if para_hash not in result["content"]["paragraphs"]:
+                        result["content"]["paragraphs"][para_hash] = para
+                    page_content["paragraphs"].append(para_hash)
+
                 for block in page.get_text("dict")["blocks"]:
                     if block["type"] == 0:  # Text block
                         for line in block["lines"]:
                             for span in line["spans"]:
                                 if span["font"].startswith("Heading"):
-                                    page_headings.append(span["text"])
+                                    heading_hash = hash_content(span["text"])
+                                    if heading_hash not in result["content"]["headings"]:
+                                        result["content"]["headings"][heading_hash] = span["text"]
+                                    page_content["headings"].append(heading_hash)
 
-                # Deduplicate paragraphs and headings
-                unique_paragraphs = {}
-                unique_headings = {}
-                for para in page_paragraphs:
-                    para_hash = hash_content(para)
-                    if para_hash not in seen_paragraphs:
-                        unique_paragraphs[para_hash] = para
-                        seen_paragraphs[para_hash] = para
-
-                for heading in page_headings:
-                    heading_hash = hash_content(heading)
-                    if heading_hash not in seen_headings:
-                        unique_headings[heading_hash] = heading
-                        seen_headings[heading_hash] = heading
-
-                result["content"]["text"] += page_text
-                result["content"]["paragraphs"].update(unique_paragraphs)
-                result["content"]["headings"].update(unique_headings)
-                result["content"]["pages"].append({
-                    "page_number": page_num + 1,
-                    "text": page_text,
-                    "paragraphs": list(unique_paragraphs.keys()),
-                    "headings": list(unique_headings.keys())
-                })
+                result["content"]["pages"].append(page_content)
 
         # Process Word documents
         elif ext in ['.docx', '.doc']:
             doc = Document(file_path)
-            for para in doc.paragraphs:
-                para_text = para.text
-                para_hash = hash_content(para_text)
-                if para_hash not in seen_paragraphs:
-                    result["content"]["text"] += para_text + "\n"
-                    seen_paragraphs[para_hash] = para_text
-                    result["content"]["paragraphs"][para_hash] = para_text
-                if para.style.name.startswith('Heading') and para_hash not in seen_headings:
-                    seen_headings[para_hash] = para_text
-                    result["content"]["headings"][para_hash] = para_text
-            for table in doc.tables:
-                table_data = []
-                for row in table.rows:
-                    row_data = [cell.text for cell in row.cells]
-                    table_data.append(row_data)
-                result["content"]["tables"].append(table_data)
-            
+            current_page = {"type": "docx_page", "page_number": 1, "paragraphs": [], "headings": []}
+            page_count = 0
+        
+            def add_page(page):
+                nonlocal page_count
+                page_count += 1
+                page["page_number"] = page_count
+                result["content"]["pages"].append(page)
+        
+            for element in doc.element.body:
+                if element.tag.endswith('p'):  # Paragraph
+                    para = doc.paragraphs[len(current_page["paragraphs"]) + len(current_page["headings"])]
+                    para_text = para.text.strip()
+                    if para_text:
+                        para_hash = hash_content(para_text)
+                        if para.style.name.startswith('Heading'):
+                            result["content"]["headings"][para_hash] = para_text
+                            current_page["headings"].append(para_hash)
+                        else:
+                            result["content"]["paragraphs"][para_hash] = para_text
+                            current_page["paragraphs"].append(para_hash)
+                elif element.tag.endswith('tbl'):  # Table
+                    table_data = []
+                    for row in element.findall('.//w:tr', namespaces=element.nsmap):
+                        row_data = [cell.text.strip() for cell in row.findall('.//w:t', namespaces=element.nsmap)]
+                        table_data.append(row_data)
+                    result["content"]["tables"].append(table_data)
+                    table_hash = hash_content(str(table_data))
+                    current_page["paragraphs"].append(f"TABLE_{table_hash}")
+                elif element.tag.endswith('sectPr'):  # Section break (new page)
+                    if current_page["paragraphs"] or current_page["headings"]:
+                        add_page(current_page)
+                        current_page = {"type": "docx_page", "paragraphs": [], "headings": []}
+        
+            # Add the last page if it has content
+            if current_page["paragraphs"] or current_page["headings"]:
+                add_page(current_page)
+        
             # Extract images and apply OCR
             for rel in doc.part.rels.values():
                 if "image" in rel.target_ref:
                     image = Image.open(io.BytesIO(rel.target_part.blob))
                     ocr_text = apply_ocr(image)
-                    result["content"]["text"] += ocr_text + "\n"
-                    para_hash = hash_content(ocr_text)
-                    if para_hash not in seen_paragraphs:
-                        seen_paragraphs[para_hash] = ocr_text
+                    if ocr_text.strip():
+                        para_hash = hash_content(ocr_text)
                         result["content"]["paragraphs"][para_hash] = ocr_text
+                        add_page({
+                            "type": "docx_image",
+                            "paragraphs": [para_hash]
+                        })
+        
+            # Add document properties
+            doc_props = doc.core_properties
+            result["metadata"]["title"] = doc_props.title or ""
+            result["metadata"]["author"] = doc_props.author or ""
+            result["metadata"]["created"] = str(doc_props.created) if doc_props.created else ""
+            result["metadata"]["modified"] = str(doc_props.modified) if doc_props.modified else ""
 
         # Process PowerPoint presentations
         elif ext in ['.pptx', '.ppt']:
             prs = Presentation(file_path)
             for slide_num, slide in enumerate(prs.slides):
-                slide_text = ""
                 slide_paragraphs = []
                 for shape in slide.shapes:
                     if hasattr(shape, 'text'):
-                        shape_text = shape.text
-                        slide_text += shape_text + "\n"
-                        para_hash = hash_content(shape_text)
-                        if para_hash not in seen_paragraphs:
+                        shape_text = shape.text.strip()
+                        if shape_text:
+                            para_hash = hash_content(shape_text)
+                            if para_hash not in result["content"]["paragraphs"]:
+                                result["content"]["paragraphs"][para_hash] = shape_text
                             slide_paragraphs.append(para_hash)
-                            seen_paragraphs[para_hash] = shape_text
-                            result["content"]["paragraphs"][para_hash] = shape_text
                     if hasattr(shape, "image"):
                         image = Image.open(io.BytesIO(shape.image.blob))
                         ocr_text = apply_ocr(image)
-                        slide_text += ocr_text + "\n"
                         para_hash = hash_content(ocr_text)
-                        if para_hash not in seen_paragraphs:
-                            slide_paragraphs.append(para_hash)
-                            seen_paragraphs[para_hash] = ocr_text
+                        if para_hash not in result["content"]["paragraphs"]:
                             result["content"]["paragraphs"][para_hash] = ocr_text
-                result["content"]["text"] += slide_text
+                        slide_paragraphs.append(para_hash)
                 result["content"]["pages"].append({
                     "slide_number": slide_num + 1,
-                    "text": slide_text,
                     "paragraphs": slide_paragraphs
                 })
 
@@ -187,32 +204,39 @@ def extract_json_text(file_path):
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
                 text = file.read()
                 paragraphs = text.split('\n\n')
-                unique_paragraphs = {}
+                page_paragraphs = []
                 for para in paragraphs:
-                    para_hash = hash_content(para)
-                    if para_hash not in seen_paragraphs:
-                        unique_paragraphs[para_hash] = para
-                        seen_paragraphs[para_hash] = para
-                result["content"]["text"] = text
-                result["content"]["paragraphs"].update(unique_paragraphs)
+                    para = para.strip()
+                    if para:
+                        para_hash = hash_content(para)
+                        if para_hash not in result["content"]["paragraphs"]:
+                            result["content"]["paragraphs"][para_hash] = para
+                        page_paragraphs.append(para_hash)
+                result["content"]["pages"].append({
+                    "page_number": 1,
+                    "paragraphs": page_paragraphs
+                })
 
         # Default processing for other file types
         else:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
                 text = file.read()
                 paragraphs = text.split('\n\n')
-                unique_paragraphs = {}
+                page_paragraphs = []
                 for para in paragraphs:
-                    para_hash = hash_content(para)
-                    if para_hash not in seen_paragraphs:
-                        unique_paragraphs[para_hash] = para
-                        seen_paragraphs[para_hash] = para
-                result["content"]["text"] = text
-                result["content"]["paragraphs"].update(unique_paragraphs)
+                    para = para.strip()
+                    if para:
+                        para_hash = hash_content(para)
+                        if para_hash not in result["content"]["paragraphs"]:
+                            result["content"]["paragraphs"][para_hash] = para
+                        page_paragraphs.append(para_hash)
+                result["content"]["pages"].append({
+                    "page_number": 1,
+                    "paragraphs": page_paragraphs
+                })
 
     except Exception as e:
-        # Handle any exceptions that occur during file processing
-        result["content"]["text"] = f"Error processing file: {str(e)}"
+        result["content"]["paragraphs"][hash_content(str(e))] = f"Error processing file: {str(e)}"
 
     return result
 

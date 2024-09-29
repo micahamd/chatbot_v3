@@ -35,9 +35,55 @@ def extract_text_content(json_file):
     print(f"Extracting text content from: {type(json_file)}")
     if isinstance(json_file, dict):
         if 'text_JSON' in json_file:
-            text = json_file['text_JSON'].get('content', {}).get('text', '') or ''
-            print(f"Extracted text content length: {len(text)}")
-            return text
+            content = json_file['text_JSON'].get('content', {})
+            paragraphs = content.get('paragraphs', {})
+            headings = content.get('headings', {})
+            tables = content.get('tables', [])
+            pages = content.get('pages', [])
+            
+            # Combine structural elements
+            structural_content = []
+            
+            # Process pages if available
+            if pages:
+                for page in pages:
+                    page_type = page.get('type', 'page')
+                    page_number = page.get('page_number', '')
+                    structural_content.append(f"{page_type.capitalize()} {page_number}:")
+                    
+                    for heading_hash in page.get('headings', []):
+                        heading_text = headings.get(heading_hash, '')
+                        if heading_text:
+                            structural_content.append(f"Heading: {heading_text}")
+                    
+                    for para_hash in page.get('paragraphs', []):
+                        if para_hash.startswith("TABLE_"):
+                            table_index = int(para_hash.split('_')[1])
+                            if table_index < len(tables):
+                                structural_content.append("Table:")
+                                for row in tables[table_index]:
+                                    structural_content.append(" | ".join(str(cell) for cell in row))
+                        else:
+                            para_text = paragraphs.get(para_hash, '')
+                            if para_text:
+                                structural_content.append(para_text)
+            else:
+                # If no pages, process headings and paragraphs directly
+                for heading in headings.values():
+                    structural_content.append(f"Heading: {heading}")
+                for para in paragraphs.values():
+                    structural_content.append(para)
+                
+                # Process tables if available
+                if tables:
+                    for table in tables:
+                        structural_content.append("Table:")
+                        for row in table:
+                            structural_content.append(" | ".join(str(cell) for cell in row))
+            
+            combined_content = "\n\n".join(structural_content)
+            print(f"Extracted structured content length: {len(combined_content)}")
+            return combined_content
         else:
             # If it's a dictionary of files, concatenate all text content
             texts = [extract_text_content(file_json) for file_json in json_file.values()]
