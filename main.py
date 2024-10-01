@@ -129,11 +129,11 @@ class AIPlaygroundGUI(QMainWindow):
 
         # Context directory selection
         context_layout = QHBoxLayout()
-        self.context_checkbox = QCheckBox("Use Context Directory")
-        context_layout.addWidget(self.context_checkbox)
         self.context_button = QPushButton("Select Context Directory")
         self.context_button.clicked.connect(self.select_context_directory)
         context_layout.addWidget(self.context_button)
+        self.context_label = QLabel("No Context Directory Selected")
+        context_layout.addWidget(self.context_label)
         layout.addLayout(context_layout)
 
         # Batch directory selection
@@ -212,10 +212,10 @@ class AIPlaygroundGUI(QMainWindow):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Context Directory")
         if dir_path:
             self.playground.context_dir = dir_path
-            self.context_button.setText(f"Context: {dir_path}")
+            self.context_label.setText(f"Context: {dir_path}")
         else:
             self.playground.context_dir = None
-            self.context_button.setText("Select Context Directory")
+            self.context_label.setText("No Context Directory Selected")
 
     def select_batch_directory(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Batch Directory")
@@ -244,12 +244,9 @@ class AIPlaygroundGUI(QMainWindow):
             dev = self.dev_combo.currentText()
             model = self.model_combo.currentText()
 
-            if self.context_checkbox.isChecked() and self.playground.context_dir:
-                self.playground.update_context()
-
             include_history = self.include_history_checkbox.isChecked()
             image_skip = self.image_skip_checkbox.isChecked()
-
+    
             print(f"Image skip: {image_skip}")
             print(f"Include chat history: {include_history}") 
     
@@ -263,7 +260,7 @@ class AIPlaygroundGUI(QMainWindow):
                     model_name=model,
                     max_tokens=int(self.max_tok_input.text()),
                     include_chat_history=include_history,
-                    image_skip=image_skip  # Add this parameter
+                    image_skip=image_skip
                 )
         
                 total_files = len(batch_results)
@@ -273,9 +270,10 @@ class AIPlaygroundGUI(QMainWindow):
                     html_output += f"<h3>File: {file_path}</h3>"
                     html_output += self.markdown_to_html(response)
                     html_output += "<hr>"
-                    progress_value = int((i + 1) / total_files * 100)
-                    self.progress_bar.setValue(progress_value)
-                    QApplication.processEvents()
+                    if (i + 1) % max(1, total_files // 20) == 0:  # Update every 5% of progress
+                        progress_value = int((i + 1) / total_files * 100)
+                        self.progress_bar.setValue(progress_value)
+                        QApplication.processEvents()
                 self.output_widget.append(html_output)
                 self.progress_bar.setVisible(False)
             
@@ -329,6 +327,7 @@ class AIPlaygroundGUI(QMainWindow):
             )
         except Exception as e:
             self.output_widget.append(f"<p style='color: red;'>Error: {str(e)}</p>")
+            print(f"Error in process_request: {str(e)}")  # Add this line for debugging
         
     def handle_image_response(self, response):
         print(f"Handling image response: {response[:100]}...")  # Add this line for debugging

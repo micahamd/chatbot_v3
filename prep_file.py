@@ -58,11 +58,16 @@ def extract_text_content(json_file):
                     
                     for para_hash in page.get('paragraphs', []):
                         if para_hash.startswith("TABLE_"):
-                            table_index = int(para_hash.split('_')[1])
-                            if table_index < len(tables):
-                                structural_content.append("Table:")
-                                for row in tables[table_index]:
-                                    structural_content.append(" | ".join(str(cell) for cell in row))
+                            # Try to get the table index, if not possible, use the hash as is
+                            try:
+                                table_index = int(para_hash.split('_')[1])
+                                if table_index < len(tables):
+                                    structural_content.append("Table:")
+                                    for row in tables[table_index]:
+                                        structural_content.append(" | ".join(str(cell) for cell in row))
+                            except (ValueError, IndexError):
+                                # If we can't get a valid table index, just add the hash as text
+                                structural_content.append(f"Table reference: {para_hash}")
                         else:
                             para_text = paragraphs.get(para_hash, '')
                             if para_text:
@@ -146,7 +151,6 @@ class ContextCache:
         with open(self.cache_file, 'w') as f:
             json.dump(cache, f)
 
-
 def context_directory(directory_path, image_skip=False, use_cache=True):
     print(f"context_directory called with path: {directory_path}")
     print(f"image_skip: {image_skip}")
@@ -160,13 +164,16 @@ def context_directory(directory_path, image_skip=False, use_cache=True):
 
     print(f"Processing files in directory: {directory_path}")
     combined_results = {}
-    for file_path in glob.glob(os.path.join(directory_path, '*')):
-        if os.path.isfile(file_path):
+    for root, _, files in os.walk(directory_path):
+        for file_name in files:
+            file_path = os.path.join(root, file_name)
             print(f"Processing file: {file_path}")
-            file_name = os.path.basename(file_path)
-            result = combine_json(file_path, image_skip=image_skip)
-            combined_results[file_name] = result
-            print(f"File {file_name} processed. Image JSON: {result.get('image_JSON', {}).get('images', [])}")
+            try:
+                result = combine_json(file_path, image_skip=image_skip)
+                combined_results[file_path] = result
+                print(f"File {file_name} processed. Image JSON: {result.get('image_JSON', {}).get('images', [])}")
+            except Exception as e:
+                print(f"Error processing file {file_path}: {str(e)}")
 
     if use_cache:
         print("Saving context to cache")
@@ -174,19 +181,6 @@ def context_directory(directory_path, image_skip=False, use_cache=True):
 
     print(f"Processed {len(combined_results)} files")
     return combined_results
-
-# Updated batch_directory function
-def batch_directory(directory_path, image_skip=False):
-    results = []
-    for file_path in os.path.join(directory_path, '*'):
-        if os.path.isfile(file_path):
-            file_name = os.path.basename(file_path)
-            result = combine_json(file_path, image_skip)
-            results.append({
-                "file_name": file_name,
-                "result": result
-            })
-    return results
 
 # Utility functions for compression (optional, can be used if needed)
 def compress_context(context_json):

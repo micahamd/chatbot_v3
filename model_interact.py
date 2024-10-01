@@ -130,10 +130,18 @@ class AIPlayground:
         results = {}
         for file_path in glob.glob(os.path.join(directory, "**", file_pattern), recursive=True):
             if os.path.isfile(file_path):
-                file_content = extract_json_text(file_path)["content"]["text"]
-                file_prompt = f"{prompt}\n\nFile: {os.path.basename(file_path)}\nContent: {file_content}\n\nResponse:"
-                response = self.process_prompt(file_prompt, dev, file_path, model_name, max_tokens, include_chat_history, image_skip)
-                results[file_path] = response
+                try:
+                    # Use combine_json to get both text and image data
+                    combined_json = combine_json(file_path, image_skip=image_skip)
+                    
+                    # Extract text content from the combined JSON
+                    file_content = extract_text_content(combined_json)
+                    
+                    file_prompt = f"{prompt}\n\nFile: {os.path.basename(file_path)}\nContent: {file_content}\n\nResponse:"
+                    response = self.process_prompt(file_prompt, dev, file_path, model_name, max_tokens, include_chat_history, image_skip)
+                    results[file_path] = response
+                except Exception as e:
+                    results[file_path] = f"Error processing file: {str(e)}"
         return results
 
     def process_prompt(self, prompt: str, dev: str, file_path: str = None, model_name: str = None, max_tokens: int = 1000, include_chat_history: bool = True, image_skip: bool = True):
