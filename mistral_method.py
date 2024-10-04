@@ -4,7 +4,7 @@ import os
 import json
 from prep_file import combine_json, extract_text_content, context_directory
 
-def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max_tokens=500):
+def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max_tokens=500,   chat_history=None, ):
     print(f"Mistral API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -40,6 +40,10 @@ def mistral_api(prompt, file_path=None, context_dir=None, model_name='nemo', max
     # Combine content
     message_content = f"Context: {context_content}\nFile: {file_content}".strip()
     print(f"Final message_content: {message_content[:500]}...")
+
+    # Add chat history to the prompt
+    if chat_history:
+        prompt = f"Previous conversation:\n{chat_history}\n\nCurrent prompt: {prompt}"
 
     # Construct message and generate response
     msg_content = f"Prompt: [ {prompt} ], Content: [ {message_content} ]"

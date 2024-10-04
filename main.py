@@ -19,7 +19,7 @@ class AIPlaygroundGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Playground")
-        self.setGeometry(100, 100, 1000, 700)
+        self.setGeometry(100, 100, 500, 1000)
         self.network_manager = QNetworkAccessManager()
       # self.network_manager.finished.connect(self.on_image_downloaded)
 

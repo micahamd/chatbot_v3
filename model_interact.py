@@ -182,7 +182,7 @@ class AIPlayground:
         if include_chat_history and not image_skip:
             for message in self.conversation.messages:
                 if 'image' in message:
-                    chat_history_images.append(message['image'])
+                    chat_history_images.append(message['image'])                    
                     if dev in ['openai', 'ollama']:
                         chat_history_images.append(message['image'])
                     else:
@@ -201,13 +201,13 @@ class AIPlayground:
     
         # Call the appropriate API method
         if dev == 'google':
-            image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
+            image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history, chat_history_images, image_skip)
         elif dev == 'openai':
-            image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
+            image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history, chat_history_images, image_skip)
         elif dev == 'mistral':
-            image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens)
+            image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens, chat_history)
         elif dev == 'anthropic':
-            image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip)
+            image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history, chat_history_images, image_skip)
         elif dev == 'ollama':
             image_summaries, content_summary = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history, image_skip)
         else:

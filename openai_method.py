@@ -10,7 +10,7 @@ from pathlib import Path
 
 load_dotenv()
 
-def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tokens=500, chat_history_images=None, image_skip=False):
+def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tokens=500, chat_history=None, chat_history_images=None, image_skip=False):
     print(f"GPT API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -75,7 +75,9 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
     
         image_urls.extend(extract_image_urls(json_file))
         image_urls.extend(extract_image_urls(context_json))
-        if chat_history_images:
+        
+        # Process chat history images
+        if not image_skip and chat_history_images:
             image_urls.extend(chat_history_images)
     
         for image_url in image_urls:
@@ -127,6 +129,10 @@ def gpt_api(prompt, file_path=None, context_dir=None, model_name='mini', max_tok
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": f"{context_content}\n\n{text_content}\n\n{prompt}"}
     ]
+
+    # Add chat history to the content summary messages
+    if chat_history:
+        content_summary_messages.insert(1, {"role": "system", "content": f"Previous conversation: {chat_history}"})
 
     try:
         content_summary_response = client.chat.completions.create(

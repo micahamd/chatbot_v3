@@ -9,7 +9,7 @@ from pathlib import Path
 
 load_dotenv()
 
-def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-sonnet-20240220', max_tokens=1000, chat_history_images=None, image_skip=False):
+def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-sonnet-20240220', max_tokens=1000, chat_history=None, chat_history_images=None, image_skip=False):
     print(f"Claude API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -63,13 +63,19 @@ def claude_api(prompt, file_path=None, context_dir=None, model_name='claude-3-so
     all_img_paths = []
     if not image_skip:
         all_img_paths = img_paths + context_img_paths
-        if chat_history_images:
-            all_img_paths.extend(chat_history_images)
+    
+    # Process chat history images
+    if not image_skip and chat_history_images:
+        all_img_paths.extend(chat_history_images)
     
     print(f"Total number of images to process: {len(all_img_paths)}")
     
     # Prepare messages for Claude
     messages = [{"role": "user", "content": []}]
+    
+    # Add chat history to the messages
+    if chat_history:
+        messages[0]["content"].insert(0, {"type": "text", "text": f"Previous conversation: {chat_history}"})
     
     # Add text content
     if message_content:

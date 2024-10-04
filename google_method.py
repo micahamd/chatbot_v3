@@ -7,7 +7,7 @@ from prep_file import combine_json, context_directory, extract_text_content, ext
 
 load_dotenv()
 
-def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max_tokens=500, chat_history_images=None, image_skip=False):
+def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max_tokens=500, chat_history=None, chat_history_images=None, image_skip=False):
     print(f"Gemini API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -51,6 +51,8 @@ def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max
     if file_content:
         message_parts.append(f"File: {file_content}")
     message_content = "\n".join(message_parts).strip()
+    if chat_history:
+        message_parts.append(f"Chat History: {chat_history}")
     
     if message_content:
         print(f"Final message_content length: {len(message_content)}")
@@ -93,5 +95,6 @@ def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max
 
         # Generate content summary without images
         content_summary = model.generate_content([prompt, message_content] if message_content else [prompt])
+        
         
         return "\n\n".join(image_summaries), content_summary.text
