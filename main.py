@@ -198,7 +198,7 @@ class AIPlaygroundGUI(QMainWindow):
         self.model_combo.clear()
         dev = self.dev_combo.currentText()
         if dev == "google":
-            self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro"])
+            self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro","gemini-1.5-flash-002", "gemini-1.5-pro-002"])
         elif dev == "openai":
             self.model_combo.addItems(["gpt-4o-mini", "gpt-4o", "dall-e-3"])
         elif dev == "mistral":

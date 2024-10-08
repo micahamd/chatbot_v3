@@ -11,6 +11,8 @@ flux_method.py
 media_convert.py
 simple_pdf.py
 weber.py
+hug_face.py
+molmo.py
 
 
 prompt_list.md
