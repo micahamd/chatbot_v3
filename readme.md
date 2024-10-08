@@ -26,7 +26,7 @@ Multimodal Chatbot 0.3 is a Python-based chatbot that allows interaction with se
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/multimodal-chatbot.git
+   git clone https://github.com/micahamd/chatbot_v3
    cd multimodal-chatbot
    ```
 
