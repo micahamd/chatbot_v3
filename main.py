@@ -13,6 +13,10 @@ from PyQt6.QtCore import (QUrl, Qt)
 from PyQt6.QtNetwork import (QNetworkAccessManager, QNetworkRequest, QNetworkReply)
 from model_interact import AIPlayground
 from prep_file import context_directory
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters import HtmlFormatter
+from pygments.util import ClassNotFound
 
 
 class AIPlaygroundGUI(QMainWindow):
@@ -206,7 +210,7 @@ class AIPlaygroundGUI(QMainWindow):
         elif dev == "anthropic":
             self.model_combo.addItems(["claude-3-5-sonnet-20240620", "claude-3-opus-20240229","claude-3-haiku-20240307"])
         elif dev == "ollama":  
-            self.model_combo.addItems(["mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest", "llama3.2:latest", "minicpm-v:latest","codestral:latest","phi3.5:latest"])
+            self.model_combo.addItems(["mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest", "llama3.2:latest", "minicpm-v:latest"])
 
     def select_context_directory(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Context Directory")
@@ -417,20 +421,46 @@ class AIPlaygroundGUI(QMainWindow):
                     file.write(self.output_widget.toPlainText())
 
     def markdown_to_html(self, text):
-        # Convert markdown to HTML
+        # Function to replace code blocks with syntax highlighted HTML
+        def replace_code_block(match):
+            code = match.group(2)
+            lang = match.group(1) or 'python'  # Default to Python if language is not specified
+            try:
+                lexer = get_lexer_by_name(lang, stripall=True)
+            except ClassNotFound:
+                lexer = get_lexer_by_name('text', stripall=True)
+            formatter = HtmlFormatter(style='monokai')
+            highlighted_code = highlight(code, lexer, formatter)
+            return f'<div class="code-block">{highlighted_code}</div>'
+
+        # Replace code blocks with syntax highlighted versions
+        text = re.sub(r'```(\w+)?\n(.*?)\n```', replace_code_block, text, flags=re.DOTALL)
+
+        # Convert the rest of the markdown to HTML
         html = markdown.markdown(text)
-        
+
         # Replace LaTeX equations with MathJax rendering
-        html = re.sub(r'\$\$(.*?)\$\$', lambda m: f'\\({m.group(1)}\\)', html)
+        html = re.sub(r'\$\$(.*?)\$\$', lambda m: f'\\[{m.group(1)}\\]', html)
         html = re.sub(r'\$(.*?)\$', lambda m: f'\\({m.group(1)}\\)', html)
-        
-        # Wrap the content with MathJax script
+
+        # Wrap the content with MathJax script and CSS for code blocks
         html = f'''
         <html>
         <head>
         <script type="text/javascript" async
           src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML">
         </script>
+        <style>
+            .code-block {{ 
+                background-color: #272822; 
+                padding: 10px; 
+                border-radius: 5px; 
+                font-family: 'Courier New', Courier, monospace;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }}
+            {HtmlFormatter().get_style_defs('.highlight')}
+        </style>
         </head>
         <body>
         {html}

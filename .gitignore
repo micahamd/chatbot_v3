@@ -13,13 +13,16 @@ simple_pdf.py
 weber.py
 hug_face.py
 molmo.py
-
+teleprompt.py
 
 prompt_list.md
 
 /context_files
 /output_files
 /venv
+/dist
+/build
+
 
 .DS_Storev
 .DS_Store

@@ -2,6 +2,7 @@ import ollama
 from typing import Optional, List, Dict
 from prep_file import combine_json, context_directory, extract_text_content, extract_image_directory_from_json
 from pathlib import Path
+from ollama import generate
 import base64
 import json
 
@@ -130,19 +131,43 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
 
     print(f"Number of messages: {len(messages)}")
 
+    # Flatten the prompt to utilize ollama's generate function
+    flattened_prompt = "\n\n".join([f"{msg['role'].capitalize()}: {msg['content']}" for msg in messages])
+
+    print(f"Flattened prompt length: {len(flattened_prompt)}")
+
     try:
-        response = ollama.chat(
+        response = generate(
             model=full_model_name,
-            messages=messages,
+            prompt=flattened_prompt,
             options={
                 'num_predict': max_tokens,
-                'temperature': 0.7,  # You can adjust this or make it a parameter
+                'temperature': 0.4,  
             }
         )
-        content_summary = response['message']['content']
-        print(f"Final response: {content_summary}")
+        content_summary = response['response']
+        print(f"Final response: {content_summary[:500]}...")  # Print first 500 chars of the response
         return image_summaries, content_summary
     except Exception as e:
         error_msg = f"Error in Ollama API call: {str(e)}"
         print(error_msg)
         return "", error_msg
+
+
+# Chat function
+#    try:
+#        response = ollama.chat(
+#            model=full_model_name,
+#            messages=messages,
+#            options={
+#                'num_predict': max_tokens,
+#                'temperature': 0.4,  # You can adjust this or make it a parameter
+#            }
+#        )
+#        content_summary = response['message']['content']
+#        print(f"Final response: {content_summary}")
+#        return image_summaries, content_summary
+#    except Exception as e:
+#        error_msg = f"Error in Ollama API call: {str(e)}"
+#        print(error_msg)
+#        return "", error_msg
