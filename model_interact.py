@@ -53,10 +53,7 @@ def model_playground(
         else:
             raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', or 'mistral'.")
         
-        # Remove any "Response for chat history image:" prefix if present
-        response = response.replace("Response for chat history image:", "").strip()
-        
-        return response
+        return response.strip()
 
     chat_history_images = []
     if include_chat_history and conversation.messages:
@@ -64,11 +61,9 @@ def model_playground(
         for message in conversation.messages:
             if 'image' in message:
                 if message['image'].startswith('http'):
-                    # If it's a URL, download the image
                     response = requests.get(message['image'])
                     image = Image.open(io.BytesIO(response.content))
                 else:
-                    # If it's base64 encoded data
                     image_data = base64.b64decode(message['image'])
                     image = Image.open(io.BytesIO(image_data))
                 chat_history_images.append(image)
@@ -80,12 +75,10 @@ def model_playground(
     conversation.add_message("User", prompt)
     conversation.add_message("Assistant", response)
 
-    result = {
+    return {
         "response": response,
         "conversation": conversation
     }
-
-    return result
 
 class AIPlayground:
     def __init__(self, context_dir: str = None, history_file: str = "conversation_history.json"):
@@ -122,118 +115,110 @@ class AIPlayground:
 
     def clear_history(self):
         self.conversation = Conversation()
-        self.chat_history_images = []  # Explicitly clear any stored images
         self.save_history()
-        print("Conversation history and associated images cleared.")
+        print("Conversation history cleared.")
 
     def batch_process(self, directory, prompt, dev, model_name, max_tokens=1000, include_chat_history=True, file_pattern="*.*", image_skip=True):
         results = {}
         for file_path in glob.glob(os.path.join(directory, "**", file_pattern), recursive=True):
             if os.path.isfile(file_path):
                 try:
-                    # Use combine_json to get both text and image data
                     combined_json = combine_json(file_path, image_skip=image_skip)
-                    
-                    # Extract text content from the combined JSON
                     file_content = extract_text_content(combined_json)
                     
-                    file_prompt = f"{prompt}\n\nFile: {os.path.basename(file_path)}\nContent: {file_content}\n\nResponse:"
+                    # Minimize prompt construction
+                    file_prompt = f"{prompt}\n\nContent: {file_content}"
                     response = self.process_prompt(file_prompt, dev, file_path, model_name, max_tokens, include_chat_history, image_skip)
                     results[file_path] = response
                 except Exception as e:
-                    results[file_path] = f"Error processing file: {str(e)}"
+                    results[file_path] = f"Error: {str(e)}"
         return results
 
     def process_prompt(self, prompt: str, dev: str, file_path: str = None, model_name: str = None, max_tokens: int = 1000, include_chat_history: bool = True, image_skip: bool = True):
-        print(f"Processing prompt with context_dir: {self.context_dir}")
-        print(f"Cached context available: {self.cached_context is not None}")
-        print(f"Image skip: {image_skip}")  # Add this line for debugging
-        
         context = self.cached_context or self.context_dir
         
+        # Handle context as dictionary
         if isinstance(context, dict):
-            print("Cached context is a dictionary. Writing to temporary file.")
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp:
                 json.dump(context, temp)
                 context_path = temp.name
-            print(f"Temporary context file created at: {context_path}")
         else:
             context_path = context
         
-        print(f"Using context path: {context_path}")
+        # Extract content efficiently
+        content_parts = []
         
-        # Extract text content from file_path
-        file_content = ""
+        # Add file content if exists
         if file_path:
             json_file = combine_json(file_path, image_skip=image_skip)
             file_content = extract_text_content(json_file)
-            print(f"Extracted file content length: {len(file_content)}")
+            if file_content.strip():
+                content_parts.append(file_content)
     
-        # Extract text content from context
-        context_content = ""
+        # Add context content if exists
         if context_path:
             context_json = context_directory(context_path, image_skip=image_skip, use_cache=True)
             context_content = extract_text_content(context_json)
-            print(f"Extracted context content length: {len(context_content)}")
+            if context_content.strip():
+                content_parts.append(context_content)
         
-        # Prepare chat history
-        chat_history = self.conversation.get_full_conversation() if include_chat_history else ""
+        # Add chat history if needed
+        if include_chat_history:
+            chat_history = self.conversation.get_full_conversation()
+            if chat_history.strip():
+                content_parts.append(chat_history)
+        
+        # Add prompt
+        if prompt.strip():
+            content_parts.append(f"User: {prompt}")
+        
+        # Combine all parts efficiently
+        full_content = "\n\n".join(content_parts)
+        
+        # Process images if needed (only if image_skip is False)
         chat_history_images = []
         if include_chat_history and not image_skip:
             for message in self.conversation.messages:
                 if 'image' in message:
-                    chat_history_images.append(message['image'])                    
-                    if dev in ['openai', 'ollama']:
-                        chat_history_images.append(message['image'])
+                    if message['image'].startswith('http'):
+                        response = requests.get(message['image'])
+                        image = Image.open(io.BytesIO(response.content))
                     else:
-                        # Process image for other methods
-                        if message['image'].startswith('http'):
-                            response = requests.get(message['image'])
-                            image = Image.open(io.BytesIO(response.content))
-                        else:
-                            image_data = base64.b64decode(message['image'])
-                            image = Image.open(io.BytesIO(image_data))
-                        chat_history_images.append(image)
+                        image_data = base64.b64decode(message['image'])
+                        image = Image.open(io.BytesIO(image_data))
+                    chat_history_images.append(image)
     
-        # Combine all text content
-        full_content = f"{context_content}\n\n{file_content}\n\n{chat_history}\n\nUser: {prompt}"
-        print(f"Full content length: {len(full_content)}")
-    
-        # Call the appropriate API method
+        # Call API with image_skip parameter
         if dev == 'google':
-            image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history, chat_history_images, image_skip)
+            image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
         elif dev == 'openai':
-            image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history, chat_history_images, image_skip)
+            image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
         elif dev == 'mistral':
-            image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens, chat_history)
+            image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens)
         elif dev == 'anthropic':
-            image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history, chat_history_images, image_skip)
+            image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
         elif dev == 'ollama':
-            image_summaries, content_summary = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, chat_history, image_skip)
+            image_summaries, content_summary = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
         else:
-            raise ValueError(f"Invalid dev option: {dev}. Choose 'google', 'openai', 'mistral', 'anthropic', or 'ollama'.")
+            raise ValueError(f"Invalid dev option: {dev}")
 
-        if image_summaries:
-            result = f"Image summaries:\n\n{image_summaries}\n\nContent summary:\n\n{content_summary}"
-        else:
-            result = content_summary
+        # Combine results efficiently
+        result = content_summary
+        if image_summaries and not image_skip:
+            result = f"{image_summaries}\n\n{content_summary}"
 
-        self._print_response(dev, prompt, result)
-        # self.conversation.add_message("User", prompt) # Don't include user input in UI window
         self.conversation.add_message("Assistant", result)
         self.save_history()
         
+        # Cleanup temp file if created
         if isinstance(context, dict) and 'temp' in locals():
-            import os
             os.unlink(temp.name)
-            print(f"Temporary context file removed: {temp.name}")
         
         return result
 
     def update_context(self):
         if self.context_cache and self.context_dir:
-            new_context = context_directory(self.context_dir, use_cache=True)
-            self.cached_context = new_context
+            self.cached_context = context_directory(self.context_dir, use_cache=True)
             print("Context updated.")
         else:
             print("No context directory specified or context cache not initialized.")
@@ -241,5 +226,3 @@ class AIPlayground:
     def _print_response(self, dev: str, prompt: str, response: str):
         print(f"\n{dev.capitalize()} Response to '{prompt}':")
         print(response)
-
-

@@ -4,24 +4,18 @@ conversation_history.json
 
 .env
 
-folder_select.py
-run_playground.py
-ideogram_method.py
-flux_method.py
-media_convert.py
-simple_pdf.py
-weber.py
-hug_face.py
-molmo.py
-teleprompt.py
-
 prompt_list.md
 
 /context_files
+/Lib\site-packages
+/Scripts
 /output_files
-/venv
+/.venv
 /dist
 /build
+/other_py_files
+/Lib
+
 
 
 .DS_Storev

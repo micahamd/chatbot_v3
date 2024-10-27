@@ -86,7 +86,7 @@ class AIPlaygroundGUI(QMainWindow):
         # Developer and Model selection
         dev_model_layout = QHBoxLayout()
         self.dev_combo = QComboBox()
-        self.dev_combo.addItems(["google", "openai", "mistral", "anthropic", "ollama"])  # Added "ollama"
+        self.dev_combo.addItems(["ollama","google", "openai", "mistral", "anthropic"])  # Added "ollama"
         self.dev_combo.currentIndexChanged.connect(self.update_model_options)
         dev_model_layout.addWidget(QLabel("AI Provider:"))
         dev_model_layout.addWidget(self.dev_combo)
@@ -201,16 +201,16 @@ class AIPlaygroundGUI(QMainWindow):
     def update_model_options(self):
         self.model_combo.clear()
         dev = self.dev_combo.currentText()
-        if dev == "google":
+        if dev == "ollama":
+            self.model_combo.addItems(["llama3.2:latest", "minicpm-v:latest","mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest"])
+        elif dev == "google":
             self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro","gemini-1.5-flash-002", "gemini-1.5-pro-002"])
         elif dev == "openai":
             self.model_combo.addItems(["gpt-4o-mini", "gpt-4o", "dall-e-3"])
         elif dev == "mistral":
-            self.model_combo.addItems(["open-mistral-nemo", "mistral-large-latest","codestral-latest"])
+            self.model_combo.addItems(["ministral-8b-latest","ministral-3b-latest","open-mistral-nemo", "mistral-large-latest","codestral-latest"])
         elif dev == "anthropic":
-            self.model_combo.addItems(["claude-3-5-sonnet-20240620", "claude-3-opus-20240229","claude-3-haiku-20240307"])
-        elif dev == "ollama":  
-            self.model_combo.addItems(["mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest", "llama3.2:latest", "minicpm-v:latest"])
+            self.model_combo.addItems(["claude-3-5-sonnet-latest", "claude-3-opus-latest","claude-3-haiku-latest"])
 
     def select_context_directory(self):
         dir_path = QFileDialog.getExistingDirectory(self, "Select Context Directory")

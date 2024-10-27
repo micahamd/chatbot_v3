@@ -1,104 +1,76 @@
-from read_json_text import extract_json_text  # Import function to extract JSON text from a file
-from read_image_url import extract_images  # Import function to extract images from a file
-import json  # Import JSON module for handling JSON data
+from read_json_text import extract_json_text
+from read_image_url import extract_images
+import json
 import base64
-import os  # Import OS module for interacting with the operating system
-import glob  # Import glob module for file pattern matching
-import hashlib  # Import hashlib module for hashing functions
+import os
+import glob
+import hashlib
 import zlib
-from pathlib import Path # Import Path class for handling file paths
-from urllib.parse import urlparse # Import urlparse function for parsing URLs
+from pathlib import Path
+from urllib.parse import urlparse
 
-
-def combine_json(file_path, image_skip=False):
-    # Extract text JSON from the file
+def combine_json(file_path, image_skip=True):
+    # Always get text content first
     text_JSON = extract_json_text(file_path)
     
+    # Only get image content if image_skip is False
     if not image_skip:
-        # If image_skip is False, extract images JSON from the file
         image_JSON = extract_images(file_path)
     else:
-        # If image_skip is True, skip image extraction and set a default message
         image_JSON = {"message": "No images were processed"}
     
-    # Combine text JSON and image JSON into a single dictionary
-    combined_result = {
+    return {
         "text_JSON": text_JSON,
         "image_JSON": image_JSON
     }
-    
-    # Return the combined result
-    return combined_result
 
-# Text extraction method
 def extract_text_content(json_file):
-    print(f"Extracting text content from: {type(json_file)}")
     if isinstance(json_file, dict):
         if 'text_JSON' in json_file:
             content = json_file['text_JSON'].get('content', {})
-            paragraphs = content.get('paragraphs', {})
-            headings = content.get('headings', {})
-            tables = content.get('tables', [])
-            pages = content.get('pages', [])
             
-            # Combine structural elements
             structural_content = []
             
-            # Process pages if available
-            if pages:
-                for page in pages:
-                    page_type = page.get('type', 'page')
-                    page_number = page.get('page_number', '')
-                    structural_content.append(f"{page_type.capitalize()} {page_number}:")
-                    
-                    for heading_hash in page.get('headings', []):
-                        heading_text = headings.get(heading_hash, '')
-                        if heading_text:
-                            structural_content.append(f"Heading: {heading_text}")
-                    
-                    for para_hash in page.get('paragraphs', []):
-                        if para_hash.startswith("TABLE_"):
-                            # Try to get the table index, if not possible, use the hash as is
-                            try:
-                                table_index = int(para_hash.split('_')[1])
-                                if table_index < len(tables):
-                                    structural_content.append("Table:")
-                                    for row in tables[table_index]:
-                                        structural_content.append(" | ".join(str(cell) for cell in row))
-                            except (ValueError, IndexError):
-                                # If we can't get a valid table index, just add the hash as text
-                                structural_content.append(f"Table reference: {para_hash}")
-                        else:
-                            para_text = paragraphs.get(para_hash, '')
-                            if para_text:
-                                structural_content.append(para_text)
-            else:
-                # If no pages, process headings and paragraphs directly
-                for heading in headings.values():
-                    structural_content.append(f"Heading: {heading}")
-                for para in paragraphs.values():
-                    structural_content.append(para)
+            # Process pages
+            for page in content.get('pages', []):
+                # Add headings first
+                headings = page.get('headings', [])
+                if headings:
+                    structural_content.extend(headings)
                 
-                # Process tables if available
-                if tables:
-                    for table in tables:
-                        structural_content.append("Table:")
-                        for row in table:
-                            structural_content.append(" | ".join(str(cell) for cell in row))
+                # Add paragraphs
+                paragraphs = page.get('paragraphs', [])
+                if paragraphs:
+                    structural_content.extend(paragraphs)
             
-            combined_content = "\n\n".join(structural_content)
+            # Process tables
+            for table in content.get('tables', []):
+                if isinstance(table, dict):  # Excel sheet
+                    for row in table.get('data', []):
+                        if any(cell.strip() for cell in row):
+                            structural_content.append(" | ".join(cell for cell in row if cell.strip()))
+                else:  # CSV data
+                    for row in table:
+                        if any(cell.strip() for cell in row):
+                            structural_content.append(" | ".join(cell for cell in row if cell.strip()))
+            
+            # Join with single newlines to minimize tokens
+            combined_content = "\n".join(filter(None, structural_content))
             print(f"Extracted structured content length: {len(combined_content)}")
             return combined_content
         else:
-            # If it's a dictionary of files, concatenate all text content
-            texts = [extract_text_content(file_json) for file_json in json_file.values()]
-            combined_text = '\n\n'.join(texts)
+            # Process multiple files
+            texts = []
+            for file_json in json_file.values():
+                text = extract_text_content(file_json)
+                if text.strip():
+                    texts.append(text)
+            combined_text = "\n\n".join(texts)
             print(f"Combined text content length: {len(combined_text)}")
             return combined_text
-    print("No text content extracted")
+    
     return ''
 
-# For iterating over images in a directory
 def extract_image_directory_from_json(json_file):
     images = json_file.get('image_JSON', {}).get('images', [])
     image_urls = [image.get('url', '') for image in images]
@@ -106,11 +78,8 @@ def extract_image_directory_from_json(json_file):
     if not image_urls:
         return None
     
-    # Parse the first URL to get the path
     parsed_url = urlparse(image_urls[0])
-    image_path = Path(parsed_url.path.lstrip('/'))  # Remove leading slash
-    
-    # Return the directory containing the images
+    image_path = Path(parsed_url.path.lstrip('/'))
     return image_path.parent
 
 class ContextCache:
@@ -151,38 +120,28 @@ class ContextCache:
         with open(self.cache_file, 'w') as f:
             json.dump(cache, f)
 
-def context_directory(directory_path, image_skip=False, use_cache=True):
-    print(f"context_directory called with path: {directory_path}")
-    print(f"image_skip: {image_skip}")
-    
+def context_directory(directory_path, image_skip=True, use_cache=True):
     if use_cache:
         cache = ContextCache(directory_path)
         cached_context = cache.get_cached_context()
         if cached_context:
-            print("Returning cached context")
             return cached_context
 
-    print(f"Processing files in directory: {directory_path}")
     combined_results = {}
     for root, _, files in os.walk(directory_path):
         for file_name in files:
             file_path = os.path.join(root, file_name)
-            print(f"Processing file: {file_path}")
             try:
                 result = combine_json(file_path, image_skip=image_skip)
                 combined_results[file_path] = result
-                print(f"File {file_name} processed. Image JSON: {result.get('image_JSON', {}).get('images', [])}")
             except Exception as e:
                 print(f"Error processing file {file_path}: {str(e)}")
 
     if use_cache:
-        print("Saving context to cache")
         cache.save_cache(combined_results)
 
-    print(f"Processed {len(combined_results)} files")
     return combined_results
 
-# Utility functions for compression (optional, can be used if needed)
 def compress_context(context_json):
     return zlib.compress(json.dumps(context_json).encode())
 

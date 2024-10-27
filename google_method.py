@@ -7,7 +7,7 @@ from prep_file import combine_json, context_directory, extract_text_content, ext
 
 load_dotenv()
 
-def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max_tokens=500, chat_history=None, chat_history_images=None, image_skip=False):
+def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max_tokens=500, chat_history=None, chat_history_images=None, image_skip=True):
     print(f"Gemini API called with prompt: {prompt[:100]}...")
     print(f"File path: {file_path}")
     print(f"Context directory: {context_dir}")
@@ -60,41 +60,41 @@ def gemini_api(prompt, file_path=None, context_dir=None, model_name='flash', max
     else:
         print("No additional content provided.")
     
-    # Generate content without processing images if image_skip is True
+    # Skip image processing if image_skip is True
     if image_skip:
-        print("Image processing skipped. Generating content without images.")
+        print("Image processing skipped.")
         response = model.generate_content([prompt, message_content] if message_content else [prompt])
-        return None, response.text
-    else:
-        # Process images only if image_skip is False
-        all_img_paths = []
-        if file_path:
-            img_dir = extract_image_directory_from_json(json_file)
+        return "", response.text
+    
+    # Process images only if image_skip is False
+    print("Processing images...")
+    all_img_paths = []
+    if file_path:
+        img_dir = extract_image_directory_from_json(json_file)
+        if img_dir:
+            all_img_paths.extend(list(img_dir.glob("*.png")))
+    if context_dir:
+        for file_json in context_json_file.values():
+            img_dir = extract_image_directory_from_json(file_json)
             if img_dir:
                 all_img_paths.extend(list(img_dir.glob("*.png")))
-        if context_dir:
-            for file_json in context_json_file.values():
-                img_dir = extract_image_directory_from_json(file_json)
-                if img_dir:
-                    all_img_paths.extend(list(img_dir.glob("*.png")))
-        if chat_history_images:
-            all_img_paths.extend(chat_history_images)
-        
-        print(f"Total number of images to process: {len(all_img_paths)}")
-        
-        image_summaries = []
-        if all_img_paths:
-            for image in all_img_paths:
-                print(f"Processing image: {getattr(image, 'name', 'chat history image')}")
-                if isinstance(image, (str, Path)):  # It's a file path or Path object
-                    img = PIL.Image.open(str(image))
-                else:  # It's already a PIL.Image object
-                    img = image
-                response = model.generate_content(["Describe this image in 50 words or less:", img])
-                image_summaries.append(f"Image {getattr(image, 'name', 'chat history image')}: {response.text}")
+    if chat_history_images:
+        all_img_paths.extend(chat_history_images)
+    
+    print(f"Total number of images to process: {len(all_img_paths)}")
+    
+    image_summaries = []
+    if all_img_paths:
+        for image in all_img_paths:
+            print(f"Processing image: {getattr(image, 'name', 'chat history image')}")
+            if isinstance(image, (str, Path)):  # It's a file path or Path object
+                img = PIL.Image.open(str(image))
+            else:  # It's already a PIL.Image object
+                img = image
+            response = model.generate_content(["Describe this image in 50 words or less:", img])
+            image_summaries.append(f"Image {getattr(image, 'name', 'chat history image')}: {response.text}")
 
-        # Generate content summary without images
-        content_summary = model.generate_content([prompt, message_content] if message_content else [prompt])
-        
-        
-        return "\n\n".join(image_summaries), content_summary.text
+    # Generate content summary
+    content_summary = model.generate_content([prompt, message_content] if message_content else [prompt])
+    
+    return "\n\n".join(image_summaries) if image_summaries else "", content_summary.text
