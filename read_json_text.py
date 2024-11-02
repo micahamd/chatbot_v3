@@ -1,130 +1,180 @@
 import os
+import io
+import re
+from PIL import Image
+import pytesseract
 import fitz  # PyMuPDF
 from docx import Document
 from pptx import Presentation
 import csv
 import openpyxl
+import hashlib
 
 def extract_json_text(file_path):
-    def add_content(content, content_type, page_content):
-        if not content or not content.strip():
+    def apply_ocr(image):
+        try:
+            return pytesseract.image_to_string(image)
+        except pytesseract.TesseractNotFoundError:
+            return ""
+
+    def normalize_text(text):
+        # Remove punctuation, digits, and normalize whitespace and case
+        text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+        text = re.sub(r'\d+', '', text)      # Remove digits
+        return ' '.join(text.split()).lower()
+
+    def hash_content(content):
+        normalized_content = normalize_text(content)
+        return hashlib.md5(normalized_content.encode('utf-8')).hexdigest()
+
+    def add_content(content):
+        normalized_content = normalize_text(content)
+        if len(normalized_content) < 5:  # Skip very short content
             return None
-        
-        if content_type == "paragraphs":
-            page_content["paragraphs"].append(content)
-        elif content_type == "headings":
-            page_content["headings"].append(content)
+        content_hash = hash_content(content)
+        if content_hash not in unique_contents:
+            unique_contents[content_hash] = normalized_content
+        return content_hash  # Return content_hash to reference in pages
 
-    def process_pdf(file_path):
-        doc = fitz.open(file_path)
-        for page_num, page in enumerate(doc):
-            page_content = {"page_number": page_num + 1, "paragraphs": [], "headings": []}
-            # Only extract text, no OCR
-            text = page.get_text().strip()
-            if text:
-                add_content(text, "paragraphs", page_content)
-                result["content"]["pages"].append(page_content)
+    def is_repeated_line(line, line_counts, threshold=3):
+        normalized_line = normalize_text(line)
+        if not normalized_line:
+            return True
+        line_counts[normalized_line] = line_counts.get(normalized_line, 0) + 1
+        return line_counts[normalized_line] > threshold
 
-    def process_word(file_path):
-        doc = Document(file_path)
-        page_content = {"page_number": 1, "paragraphs": [], "headings": []}
-        
-        # Only process text content
-        for para in doc.paragraphs:
-            text = para.text.strip()
-            if text:
-                content_type = "headings" if para.style.name.startswith('Heading') else "paragraphs"
-                add_content(text, content_type, page_content)
-        
-        if page_content["paragraphs"] or page_content["headings"]:
-            result["content"]["pages"].append(page_content)
-
-    def process_ppt(file_path):
-        prs = Presentation(file_path)
-        for slide_num, slide in enumerate(prs.slides):
-            slide_content = {"slide_number": slide_num + 1, "paragraphs": [], "headings": []}
-            
-            # Only process text content
-            for shape in slide.shapes:
-                if hasattr(shape, 'text'):
-                    text = shape.text.strip()
-                    if text:
-                        add_content(text, "paragraphs", slide_content)
-            
-            if slide_content["paragraphs"] or slide_content["headings"]:
-                result["content"]["pages"].append(slide_content)
-
-    def process_excel(file_path):
-        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-        for sheet in wb.worksheets:
-            sheet_data = []
-            for row in sheet.iter_rows():
-                cleaned_row = []
-                for cell in row:
-                    value = str(cell.value) if cell.value is not None else ""
-                    if value.strip():
-                        cleaned_row.append(value)
-                    else:
-                        cleaned_row.append("")
-                if any(cell for cell in cleaned_row):
-                    sheet_data.append(cleaned_row)
-            if sheet_data:
-                result["content"]["tables"].append({"sheet": sheet.title, "data": sheet_data})
-
-    def process_csv(file_path):
-        with open(file_path, 'r', newline='', encoding='utf-8-sig') as csvfile:
-            data = []
-            for row in csv.reader(csvfile):
-                cleaned_row = [cell.strip() for cell in row]
-                if any(cleaned_row):
-                    data.append(cleaned_row)
-            if data:
-                result["content"]["tables"].append(data)
-
-    def process_text(file_path):
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
-            text = file.read().strip()
-            if text:
-                page_content = {"page_number": 1, "paragraphs": [], "headings": []}
-                paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-                for para in paragraphs:
-                    add_content(para, "paragraphs", page_content)
-                if page_content["paragraphs"]:
-                    result["content"]["pages"].append(page_content)
-
+    # Initialize data structures
     result = {
         "metadata": {
             "file_name": os.path.basename(file_path),
-            "file_type": os.path.splitext(file_path)[1].lower()
+            "file_size": os.path.getsize(file_path),
+            "file_type": os.path.splitext(file_path)[1].lower(),
+            "instructions": {
+                "text": "Unique normalized text content with hashes as keys.",
+                "pages": "List of pages with references to content hashes."
+            }
         },
         "content": {
-            "tables": [],
+            "text": {},
             "pages": []
         }
     }
 
+    unique_contents = {}
+    line_counts = {}
+
     try:
         ext = os.path.splitext(file_path)[1].lower()
         if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp']:
-            # Skip image files entirely - they'll be handled by read_image_url
-            pass
+            # Process image files
+            image = Image.open(file_path)
+            ocr_text = apply_ocr(image)
+            if ocr_text.strip():
+                content_hash = add_content(ocr_text.strip())
+                if content_hash:
+                    page_content = {"page_number": 1, "content_hashes": [content_hash]}
+                    result["content"]["pages"].append(page_content)
         elif ext == '.pdf':
-            process_pdf(file_path)
+            # Process PDF files
+            doc = fitz.open(file_path)
+            for page_num, page in enumerate(doc, start=1):
+                page_content = {"page_number": page_num, "content_hashes": []}
+                page_text = page.get_text()
+                lines = page_text.split('\n')
+                filtered_lines = []
+                for line in lines:
+                    if not is_repeated_line(line, line_counts):
+                        filtered_lines.append(line)
+                filtered_text = '\n'.join(filtered_lines).strip()
+                if filtered_text:
+                    content_hash = add_content(filtered_text)
+                    if content_hash:
+                        page_content["content_hashes"].append(content_hash)
+                else:
+                    # Apply OCR if no text is extracted
+                    pix = page.get_pixmap()
+                    img = Image.open(io.BytesIO(pix.tobytes()))
+                    ocr_text = apply_ocr(img)
+                    if ocr_text.strip():
+                        content_hash = add_content(ocr_text.strip())
+                        if content_hash:
+                            page_content["content_hashes"].append(content_hash)
+                if page_content["content_hashes"]:
+                    result["content"]["pages"].append(page_content)
         elif ext in ['.docx', '.doc']:
-            process_word(file_path)
+            # Process Word documents
+            doc = Document(file_path)
+            page_content = {"page_number": 1, "content_hashes": []}
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if text:
+                    content_hash = add_content(text)
+                    if content_hash:
+                        page_content["content_hashes"].append(content_hash)
+            if page_content["content_hashes"]:
+                result["content"]["pages"].append(page_content)
+            # Optional OCR on images - skip to prevent duplication
         elif ext in ['.pptx', '.ppt']:
-            process_ppt(file_path)
+            # Process PowerPoint presentations
+            prs = Presentation(file_path)
+            for slide_num, slide in enumerate(prs.slides, start=1):
+                page_content = {"page_number": slide_num, "content_hashes": []}
+                for shape in slide.shapes:
+                    if hasattr(shape, 'text'):
+                        text = shape.text.strip()
+                        if text:
+                            content_hash = add_content(text)
+                            if content_hash:
+                                page_content["content_hashes"].append(content_hash)
+                    # Skip OCR on images to prevent duplication
+                if page_content["content_hashes"]:
+                    result["content"]["pages"].append(page_content)
         elif ext in ['.xlsx', '.xls']:
-            process_excel(file_path)
-        elif ext in ['.csv']:
-            process_csv(file_path)
+            # Process Excel files
+            wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+            for sheet in wb.worksheets:
+                page_content = {"sheet": sheet.title, "content_hashes": []}
+                for row in sheet.iter_rows():
+                    row_values = [str(cell.value).strip() for cell in row if cell.value]
+                    if row_values:
+                        text = ' '.join(row_values)
+                        content_hash = add_content(text)
+                        if content_hash:
+                            page_content["content_hashes"].append(content_hash)
+                if page_content["content_hashes"]:
+                    result["content"]["pages"].append(page_content)
+        elif ext == '.csv':
+            # Process CSV files
+            with open(file_path, 'r', encoding='utf-8-sig') as csvfile:
+                reader = csv.reader(csvfile)
+                page_content = {"page_number": 1, "content_hashes": []}
+                for row in reader:
+                    row_values = [cell.strip() for cell in row if cell.strip()]
+                    if row_values:
+                        text = ' '.join(row_values)
+                        content_hash = add_content(text)
+                        if content_hash:
+                            page_content["content_hashes"].append(content_hash)
+                if page_content["content_hashes"]:
+                    result["content"]["pages"].append(page_content)
         else:
-            process_text(file_path)
+            # Process other text files
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+                text = file.read().strip()
+                if text:
+                    content_hash = add_content(text)
+                    if content_hash:
+                        page_content = {"page_number": 1, "content_hashes": [content_hash]}
+                        result["content"]["pages"].append(page_content)
     except Exception as e:
-        result["content"]["pages"].append({
-            "page_number": 1,
-            "paragraphs": [f"Error processing file: {str(e)}"],
-            "headings": []
-        })
+        # Handle exceptions
+        error_message = f"Error processing file: {str(e)}"
+        content_hash = add_content(error_message)
+        if content_hash:
+            page_content = {"page_number": 1, "content_hashes": [content_hash]}
+            result["content"]["pages"].append(page_content)
+
+    # Assign unique contents to result
+    result["content"]["text"] = unique_contents
 
     return result

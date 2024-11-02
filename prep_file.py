@@ -10,15 +10,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 def combine_json(file_path, image_skip=True):
-    # Always get text content first
     text_JSON = extract_json_text(file_path)
-    
-    # Only get image content if image_skip is False
     if not image_skip:
         image_JSON = extract_images(file_path)
     else:
         image_JSON = {"message": "No images were processed"}
-    
     return {
         "text_JSON": text_JSON,
         "image_JSON": image_JSON
@@ -28,38 +24,11 @@ def extract_text_content(json_file):
     if isinstance(json_file, dict):
         if 'text_JSON' in json_file:
             content = json_file['text_JSON'].get('content', {})
-            
-            structural_content = []
-            
-            # Process pages
-            for page in content.get('pages', []):
-                # Add headings first
-                headings = page.get('headings', [])
-                if headings:
-                    structural_content.extend(headings)
-                
-                # Add paragraphs
-                paragraphs = page.get('paragraphs', [])
-                if paragraphs:
-                    structural_content.extend(paragraphs)
-            
-            # Process tables
-            for table in content.get('tables', []):
-                if isinstance(table, dict):  # Excel sheet
-                    for row in table.get('data', []):
-                        if any(cell.strip() for cell in row):
-                            structural_content.append(" | ".join(cell for cell in row if cell.strip()))
-                else:  # CSV data
-                    for row in table:
-                        if any(cell.strip() for cell in row):
-                            structural_content.append(" | ".join(cell for cell in row if cell.strip()))
-            
-            # Join with single newlines to minimize tokens
-            combined_content = "\n".join(filter(None, structural_content))
-            print(f"Extracted structured content length: {len(combined_content)}")
+            text_contents = content.get('text', {}).values()
+            combined_content = "\n".join(text_contents)
+            print(f"Extracted text content length: {len(combined_content)}")
             return combined_content
         else:
-            # Process multiple files
             texts = []
             for file_json in json_file.values():
                 text = extract_text_content(file_json)
@@ -68,7 +37,6 @@ def extract_text_content(json_file):
             combined_text = "\n\n".join(texts)
             print(f"Combined text content length: {len(combined_text)}")
             return combined_text
-    
     return ''
 
 def extract_image_directory_from_json(json_file):

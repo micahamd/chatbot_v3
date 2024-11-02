@@ -20,7 +20,8 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
         'minicpm': 'minicpm-v:latest',
         'codestral': 'codestral:latest',
         'phi3': 'phi3.5:latest',
-        'mistral-nemo': 'mistral-nemo:latest'
+        'mistral-nemo': 'mistral-nemo:latest',
+        'qwen-2.5': 'qwen2.5:7b-instruct-q8_0 '
     }
     full_model_name = model_name_mapping.get(model_name, model_name)
 

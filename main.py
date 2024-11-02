@@ -202,11 +202,11 @@ class AIPlaygroundGUI(QMainWindow):
         self.model_combo.clear()
         dev = self.dev_combo.currentText()
         if dev == "ollama":
-            self.model_combo.addItems(["llama3.2:latest", "minicpm-v:latest","mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest"])
+            self.model_combo.addItems(["llama3.2:latest","qwen2.5:7b-instruct-q8_0", "minicpm-v:latest","mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest"])
         elif dev == "google":
             self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro","gemini-1.5-flash-002", "gemini-1.5-pro-002"])
         elif dev == "openai":
-            self.model_combo.addItems(["gpt-4o-mini", "gpt-4o", "dall-e-3"])
+            self.model_combo.addItems(["gpt-4o-mini", "gpt-4o","o1-preview", "dall-e-3"])
         elif dev == "mistral":
             self.model_combo.addItems(["ministral-8b-latest","ministral-3b-latest","open-mistral-nemo", "mistral-large-latest","codestral-latest"])
         elif dev == "anthropic":
