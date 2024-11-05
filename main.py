@@ -202,7 +202,7 @@ class AIPlaygroundGUI(QMainWindow):
         self.model_combo.clear()
         dev = self.dev_combo.currentText()
         if dev == "ollama":
-            self.model_combo.addItems(["llama3.2:latest","qwen2.5:7b-instruct-q8_0", "minicpm-v:latest","mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest"])
+            self.model_combo.addItems(["qwen2.5:7b-instruct-q8_0","llama3.2:latest", "minicpm-v:latest","mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest"])
         elif dev == "google":
             self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro","gemini-1.5-flash-002", "gemini-1.5-pro-002"])
         elif dev == "openai":
