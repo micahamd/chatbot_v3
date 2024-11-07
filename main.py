@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                              QLabel, QScrollArea, QCheckBox, QProgressBar, QLineEdit,
                              QStyleFactory, QTextBrowser)
 from PyQt6.QtGui import (QPixmap, QTextCursor, QTextDocument, QIntValidator, QFontDatabase, QImage, QTextImageFormat)
-from PyQt6.QtCore import (QUrl, Qt)
+from PyQt6.QtCore import (QUrl, Qt, QThread, pyqtSignal)
 from PyQt6.QtNetwork import (QNetworkAccessManager, QNetworkRequest, QNetworkReply)
 from model_interact import AIPlayground
 from prep_file import context_directory
@@ -19,13 +19,31 @@ from pygments.formatters import HtmlFormatter
 from pygments.util import ClassNotFound
 
 
+class WorkerThread(QThread):
+    result_ready = pyqtSignal(object)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, func, *args, **kwargs):
+        super().__init__()
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
+
+    def run(self):
+        try:
+            result = self.func(*self.args, **self.kwargs)
+            self.result_ready.emit(result)
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+
 class AIPlaygroundGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AI Playground")
         self.setGeometry(100, 100, 500, 1000)
         self.network_manager = QNetworkAccessManager()
-      # self.network_manager.finished.connect(self.on_image_downloaded)
+        self.network_manager.finished.connect(self.on_image_downloaded)
 
         self.playground = AIPlayground(context_dir=None)
         self.file_path = None
@@ -52,13 +70,14 @@ class AIPlaygroundGUI(QMainWindow):
                 self.add_image_to_output(pixmap)
 
     def on_image_downloaded(self, reply):
-        if reply.error() == QNetworkRequest.NetworkError.NoError:
+        if reply.error() == QNetworkReply.NetworkError.NoError:
             image_data = reply.readAll()
             pixmap = QPixmap()
             pixmap.loadFromData(image_data)
             self.add_image_to_output(pixmap)
         else:
-            self.output_widget.append(f"Error loading image: {reply.errorString()}")
+            error_message = f"Error downloading image: {reply.errorString()}"
+            self.output_widget.append(error_message)
 
     def add_image_to_output(self, pixmap):
         if not pixmap.isNull():
@@ -202,7 +221,7 @@ class AIPlaygroundGUI(QMainWindow):
         self.model_combo.clear()
         dev = self.dev_combo.currentText()
         if dev == "ollama":
-            self.model_combo.addItems(["qwen2.5:7b-instruct-q8_0","llama3.2:latest", "minicpm-v:latest","mannix/llama3.1-8b-abliterated:latest", "mistral-nemo:latest"])
+            self.model_combo.addItems(["qwen2.5:7b-instruct-q8_0","llama3.2-vision:11b-instruct-q8_0","granite3-dense:2b-instruct-fp16","minicpm-v:latest"])
         elif dev == "google":
             self.model_combo.addItems(["gemini-1.5-flash", "gemini-1.5-pro","gemini-1.5-flash-002", "gemini-1.5-pro-002"])
         elif dev == "openai":
@@ -282,57 +301,58 @@ class AIPlaygroundGUI(QMainWindow):
                 self.progress_bar.setVisible(False)
             
             else:
-                response = self.playground.process_prompt(
-                    prompt=prompt,
-                    dev=dev,
-                    file_path=self.file_path,
-                    model_name=model,
-                    max_tokens=int(self.max_tok_input.text()),
-                    include_chat_history=include_history,
-                    image_skip=image_skip
-                )
+                self.worker_thread = WorkerThread(self.playground.process_prompt, prompt, dev, self.file_path, model, int(self.max_tok_input.text()), include_history, image_skip)
+                self.worker_thread.result_ready.connect(self.handle_response)
+                self.worker_thread.error_occurred.connect(self.handle_error)
+                self.worker_thread.start()
                 
-                # Handle image generation models
-                if model == "dall-e-3":
-                    self.handle_image_response(response)
-                    self.playground.conversation.add_message("Assistant", "Generated image", response)
-                else:
-                    # Split the response into image summaries and content summary if applicable
-                    if "Image summaries:" in response and "Content summary:" in response:
-                        parts = response.split("Content summary:", 1)
-                        image_summaries = parts[0].replace("Image summaries:", "").strip()
-                        content_summary = parts[1].strip()
-                        
-                        html_response = f"<strong>Image Summaries:</strong><br>{self.markdown_to_html(image_summaries)}<br><br>"
-                        html_response += f"<strong>Content Summary:</strong><br>{self.markdown_to_html(content_summary)}"
-                    else:
-                        html_response = self.markdown_to_html(response)
-                    
-                    # Handle images in the response
-                    if "http://" in response or "https://" in response:
-                        urls = [word for word in response.split() if word.startswith(('http://', 'https://'))]
-                        for url in urls:
-                            html_response = html_response.replace(url, f'<img src="{url}" />')
-                    elif "file://" in response:
-                        file_paths = [word for word in response.split() if word.startswith('file://')]
-                        for file_path in file_paths:
-                            html_response = html_response.replace(file_path, self.embed_image(file_path[7:]))
-                    
-                    # Append only the assistant's response to the output
-                    self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
-                    self.output_widget.append("<hr>")
-                    
-                    # Add only the assistant's response to the conversation history
-                    self.playground.conversation.add_message("Assistant", response)
-    
-            # Scroll to the bottom of the output widget
-            self.output_widget.verticalScrollBar().setValue(
-                self.output_widget.verticalScrollBar().maximum()
-            )
         except Exception as e:
             self.output_widget.append(f"<p style='color: red;'>Error: {str(e)}</p>")
             print(f"Error in process_request: {str(e)}")  # Add this line for debugging
-        
+
+    def handle_response(self, response):
+        # Handle image generation models
+        model = self.model_combo.currentText()
+        if model == "dall-e-3":
+            self.handle_image_response(response)
+            self.playground.conversation.add_message("Assistant", "Generated image", response)
+        else:
+            # Split the response into image summaries and content summary if applicable
+            if "Image summaries:" in response and "Content summary:" in response:
+                parts = response.split("Content summary:", 1)
+                image_summaries = parts[0].replace("Image summaries:", "").strip()
+                content_summary = parts[1].strip()
+                
+                html_response = f"<strong>Image Summaries:</strong><br>{self.markdown_to_html(image_summaries)}<br><br>"
+                html_response += f"<strong>Content Summary:</strong><br>{self.markdown_to_html(content_summary)}"
+            else:
+                html_response = self.markdown_to_html(response)
+            
+            # Handle images in the response
+            if "http://" in response or "https://" in response:
+                urls = [word for word in response.split() if word.startswith(('http://', 'https://'))]
+                for url in urls:
+                    html_response = html_response.replace(url, f'<img src="{url}" />')
+            elif "file://" in response:
+                file_paths = [word for word in response.split() if word.startswith('file://')]
+                for file_path in file_paths:
+                    html_response = html_response.replace(file_path, self.embed_image(file_path[7:]))
+            
+            # Append only the assistant's response to the output
+            self.output_widget.append(f"<strong>Assistant:</strong> {html_response}")
+            self.output_widget.append("<hr>")
+            
+            # Add only the assistant's response to the conversation history
+            self.playground.conversation.add_message("Assistant", response)
+
+        # Scroll to the bottom of the output widget
+        self.output_widget.verticalScrollBar().setValue(
+            self.output_widget.verticalScrollBar().maximum()
+        )
+
+    def handle_error(self, error_message):
+        self.output_widget.append(f"<p style='color: red;'>Error: {error_message}</p>")
+
     def handle_image_response(self, response):
         print(f"Handling image response: {response[:100]}...")  # Add this line for debugging
         if isinstance(response, str) and response.startswith("http"):
@@ -348,25 +368,7 @@ class AIPlaygroundGUI(QMainWindow):
     def download_and_display_image(self, url):
         print(f"Downloading image from URL: {url}")
         request = QNetworkRequest(QUrl(url))
-        reply = self.network_manager.get(request)
-        # Connect the finished signal to a lambda function that passes both reply and url
-        reply.finished.connect(lambda: self.on_image_downloaded(reply, url))
-
-    def on_image_downloaded(self, reply, url):
-        error = reply.error()
-        if error == QNetworkReply.NetworkError.NoError:
-            image_data = reply.readAll()
-            image = QImage()
-            image.loadFromData(image_data)
-            if not image.isNull():
-                self.display_image(image, url)
-            else:
-                print("Error: Downloaded image is null")
-                self.output_widget.append("Error: Unable to load the image.")
-        else:
-            error_message = f"Error downloading image: {reply.errorString()}"
-            print(error_message)
-            self.output_widget.append(error_message)
+        self.network_manager.get(request)
 
     def display_image(self, image, url=None):
         pixmap = QPixmap.fromImage(image)

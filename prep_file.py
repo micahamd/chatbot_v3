@@ -24,9 +24,20 @@ def extract_text_content(json_file):
     if isinstance(json_file, dict):
         if 'text_JSON' in json_file:
             content = json_file['text_JSON'].get('content', {})
+            
+            # Extract regular text
             text_contents = content.get('text', {}).values()
-            combined_content = "\n".join(text_contents)
-            print(f"Extracted text content length: {len(combined_content)}")
+            
+            # Extract tables
+            tables = content.get('tables', [])
+            table_contents = ['\n'.join([' | '.join(row) for row in table['data']]) 
+                            for table in tables]
+            
+            # Combine all content
+            all_content = list(text_contents) + table_contents
+            combined_content = "\n\n".join(filter(None, all_content))
+            
+            print(f"Extracted content length: {len(combined_content)}")
             return combined_content
         else:
             texts = []
@@ -57,11 +68,12 @@ class ContextCache:
 
     def get_dir_hash(self):
         hash_md5 = hashlib.md5()
-        if not isinstance(self.context_dir, (str, bytes, os.PathLike)):
-            raise TypeError(f"Expected str, bytes or os.PathLike object, got {type(self.context_dir)}")
+        if not os.path.isdir(self.context_dir):
+            raise ValueError(f"Invalid directory: {self.context_dir}")
         for root, _, files in os.walk(self.context_dir):
             for file in files:
-                hash_md5.update(f"{file}{os.path.getmtime(os.path.join(root, file))}".encode())
+                file_path = os.path.join(root, file)
+                hash_md5.update(f"{file}{os.path.getmtime(file_path)}".encode())
         return hash_md5.hexdigest()
 
     def is_cache_valid(self):
@@ -112,9 +124,6 @@ def context_directory(directory_path, image_skip=True, use_cache=True):
 
 def compress_context(context_json):
     return zlib.compress(json.dumps(context_json).encode())
-
-def decompress_context(compressed_context):
-    return json.loads(zlib.decompress(compressed_context).decode())
 
 def image_to_base64(image_path):
     with open(image_path, "rb") as image_file:

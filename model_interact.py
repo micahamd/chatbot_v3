@@ -1,3 +1,4 @@
+import logging
 from google_method import gemini_api
 from mistral_method import mistral_api
 from openai_method import gpt_api
@@ -70,7 +71,11 @@ def model_playground(
     else:
         full_prompt = prompt
 
-    response = generate_response(full_prompt, chat_history_images)
+    try:
+        response = generate_response(full_prompt, chat_history_images)
+    except Exception as e:
+        logging.error(f"Error in model_playground: {e}")
+        raise
     
     conversation.add_message("User", prompt)
     conversation.add_message("Assistant", response)
@@ -134,87 +139,91 @@ class AIPlayground:
                     results[file_path] = f"Error: {str(e)}"
         return results
 
-    def process_prompt(self, prompt: str, dev: str, file_path: str = None, model_name: str = None, max_tokens: int = 1000, include_chat_history: bool = True, image_skip: bool = True):
-        context = self.cached_context or self.context_dir
+    def process_prompt(self, prompt, dev, file_path=None, model_name=None, max_tokens=1000, include_chat_history=True, image_skip=True):
+        try:
+            context = self.cached_context or self.context_dir
+            
+            # Handle context as dictionary
+            if isinstance(context, dict):
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp:
+                    json.dump(context, temp)
+                    context_path = temp.name
+            else:
+                context_path = context
+            
+            # Extract content efficiently
+            content_parts = []
+            
+            # Add file content if exists
+            if file_path:
+                json_file = combine_json(file_path, image_skip=image_skip)
+                file_content = extract_text_content(json_file)
+                if file_content.strip():
+                    content_parts.append(file_content)
         
-        # Handle context as dictionary
-        if isinstance(context, dict):
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp:
-                json.dump(context, temp)
-                context_path = temp.name
-        else:
-            context_path = context
-        
-        # Extract content efficiently
-        content_parts = []
-        
-        # Add file content if exists
-        if file_path:
-            json_file = combine_json(file_path, image_skip=image_skip)
-            file_content = extract_text_content(json_file)
-            if file_content.strip():
-                content_parts.append(file_content)
-    
-        # Add context content if exists
-        if context_path:
-            context_json = context_directory(context_path, image_skip=image_skip, use_cache=True)
-            context_content = extract_text_content(context_json)
-            if context_content.strip():
-                content_parts.append(context_content)
-        
-        # Add chat history if needed
-        if include_chat_history:
-            chat_history = self.conversation.get_full_conversation()
-            if chat_history.strip():
-                content_parts.append(chat_history)
-        
-        # Add prompt
-        if prompt.strip():
-            content_parts.append(f"User: {prompt}")
-        
-        # Combine all parts efficiently
-        full_content = "\n\n".join(content_parts)
-        
-        # Process images if needed (only if image_skip is False)
-        chat_history_images = []
-        if include_chat_history and not image_skip:
-            for message in self.conversation.messages:
-                if 'image' in message:
-                    if message['image'].startswith('http'):
-                        response = requests.get(message['image'])
-                        image = Image.open(io.BytesIO(response.content))
-                    else:
-                        image_data = base64.b64decode(message['image'])
-                        image = Image.open(io.BytesIO(image_data))
-                    chat_history_images.append(image)
-    
-        # Call API with image_skip parameter
-        if dev == 'google':
-            image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
-        elif dev == 'openai':
-            image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
-        elif dev == 'mistral':
-            image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens)
-        elif dev == 'anthropic':
-            image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
-        elif dev == 'ollama':
-            image_summaries, content_summary = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
-        else:
-            raise ValueError(f"Invalid dev option: {dev}")
+            # Add context content if exists
+            if context_path:
+                context_json = context_directory(context_path, image_skip=image_skip, use_cache=True)
+                context_content = extract_text_content(context_json)
+                if context_content.strip():
+                    content_parts.append(context_content)
+            
+            # Optimize content parts assembly
+            if prompt.strip():
+                content_parts.append(f"User: {prompt}")
 
-        # Combine results efficiently
-        result = content_summary
-        if image_summaries and not image_skip:
-            result = f"{image_summaries}\n\n{content_summary}"
+            if include_chat_history:
+                chat_history = self.conversation.get_full_conversation()
+                if chat_history.strip():
+                    content_parts.insert(0, chat_history)
+            
+            # Combine all parts efficiently
+            full_content = "\n\n".join(content_parts)
+            
+            # Process images if needed (only if image_skip is False)
+            chat_history_images = []
+            if include_chat_history and not image_skip:
+                for message in self.conversation.messages:
+                    if 'image' in message:
+                        if message['image'].startswith('http'):
+                            response = requests.get(message['image'])
+                            image = Image.open(io.BytesIO(response.content))
+                        else:
+                            image_data = base64.b64decode(message['image'])
+                            image = Image.open(io.BytesIO(image_data))
+                        chat_history_images.append(image)
+        
+            # Handle API calls with proper error handling
+            if dev == 'google':
+                image_summaries, content_summary = gemini_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
+            elif dev == 'openai':
+                image_summaries, content_summary = gpt_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
+            elif dev == 'mistral':
+                image_summaries, content_summary = "", mistral_api(full_content, file_path, context_path, model_name, max_tokens)
+            elif dev == 'anthropic':
+                image_summaries, content_summary = claude_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
+            elif dev == 'ollama':
+                image_summaries, content_summary = ollama_api(full_content, file_path, context_path, model_name, max_tokens, chat_history_images, image_skip=image_skip)
+            else:
+                raise ValueError(f"Invalid dev option: {dev}")
 
-        self.conversation.add_message("Assistant", result)
-        self.save_history()
-        
-        # Cleanup temp file if created
-        if isinstance(context, dict) and 'temp' in locals():
-            os.unlink(temp.name)
-        
-        return result
+            # Combine results efficiently
+            result = content_summary
+            if image_summaries and not image_skip:
+                result = f"{image_summaries}\n\n{content_summary}"
+
+            self.conversation.add_message("Assistant", result)
+            self.save_history()
+            
+            # Cleanup temp file if created
+            if isinstance(context, dict) and 'temp' in locals():
+                os.unlink(temp.name)
+            
+            return result
+
+        except Exception as e:
+            logging.error(f"Error in process_prompt: {e}")
+            raise
 
     def update_context(self):
         if self.context_cache and self.context_dir:

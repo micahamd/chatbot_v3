@@ -18,9 +18,6 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
         'llama3.1': 'mannix/llama3.1-8b-abliterated:latest',
         'llama3.2': 'llama3.2',
         'minicpm': 'minicpm-v:latest',
-        'codestral': 'codestral:latest',
-        'phi3': 'phi3.5:latest',
-        'mistral-nemo': 'mistral-nemo:latest',
         'qwen-2.5': 'qwen2.5:7b-instruct-q8_0 '
     }
     full_model_name = model_name_mapping.get(model_name, model_name)
@@ -143,7 +140,7 @@ def ollama_api(prompt: str, file_path: Optional[str] = None, context_dir: Option
             prompt=flattened_prompt,
             options={
                 'num_predict': max_tokens,
-                'temperature': 0.4,  
+                'temperature': 0.2,  
             }
         )
         content_summary = response['response']
