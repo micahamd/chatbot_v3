@@ -61,30 +61,67 @@ def extract_json_text(file_path):
         elif ext == '.pdf':
             doc = fitz.open(file_path)
             for page_num, page in enumerate(doc, start=1):
-                page_text = page.get_text().strip()
-                if page_text:
-                    content_hash = add_content(page_text)
-                    if content_hash:
-                        result["content"]["pages"].append({"n": page_num, "h": [content_hash]})
-                else:
+                # Get blocks of text to preserve layout structure
+                blocks = page.get_text("blocks")
+                page_content = []
+                
+                if blocks:  # If text blocks exist
+                    for block in blocks:
+                        block_text = block[4].strip()  # block[4] contains the text content
+                        if block_text:
+                            content_hash = add_content(block_text)
+                            if content_hash:
+                                page_content.append(content_hash)
+                else:  # Fallback to OCR if no text blocks
                     pix = page.get_pixmap()
                     img = Image.open(io.BytesIO(pix.tobytes()))
                     ocr_text = apply_ocr(img)
                     if ocr_text.strip():
                         content_hash = add_content(ocr_text.strip())
                         if content_hash:
-                            result["content"]["pages"].append({"n": page_num, "h": [content_hash]})
+                            page_content.append(content_hash)
+                
+                if page_content:
+                    result["content"]["pages"].append({
+                        "n": page_num,
+                        "h": page_content,
+                        "type": "text",
+                        "metadata": {
+                            "rotation": page.rotation,
+                            "size": {"width": page.rect.width, "height": page.rect.height}
+                        }
+                    })
+            
+            doc.close()
 
         elif ext in ['.docx', '.doc']:
             doc = Document(file_path)
-            page_content = []
-            for para in doc.paragraphs:
-                if para.text.strip():
-                    content_hash = add_content(para.text.strip())
-                    if content_hash:
-                        page_content.append(content_hash)
-            if page_content:
-                result["content"]["pages"].append({"n": 1, "h": page_content})
+            current_page = []
+            page_num = 1
+            
+            for element in doc.element.body:
+                if element.tag.endswith('p'):  # Paragraph
+                    if element.text.strip():
+                        content_hash = add_content(element.text.strip())
+                        if content_hash:
+                            current_page.append(content_hash)
+                elif element.tag.endswith('sectPr'):  # Section/Page break
+                    if current_page:
+                        result["content"]["pages"].append({
+                            "n": page_num,
+                            "h": current_page,
+                            "type": "text"
+                        })
+                        current_page = []
+                        page_num += 1
+            
+            # Add remaining content
+            if current_page:
+                result["content"]["pages"].append({
+                    "n": page_num,
+                    "h": current_page,
+                    "type": "text"
+                })
 
         elif ext in ['.pptx', '.ppt']:
             prs = Presentation(file_path)
